@@ -1,15 +1,12 @@
-import ReportModal from "@/components/ReportModal";
-import ReviewModal from "@/components/ReviewModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowLeft,
   Clock,
-  Flag,
+  DollarSign,
   MapPin,
   MessageCircle,
-  Star,
   User,
 } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -27,97 +24,85 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function DonationDetailsScreen() {
+export default function CampaignDetailsScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const { profile } = useAuth();
-  const [ratings, setRatings] = useState<any[]>([]);
-  const [averageRating, setAverageRating] = useState(0);
-  const [reviewModal, setReviewModal] = useState(false);
-  const [reportModal, setReportModal] = useState(false);
-  const [requestModal, setRequestModal] = useState(false);
-  const [requestMessage, setRequestMessage] = useState("");
-  const [requestLoading, setRequestLoading] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageModal, setMessageModal] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [messageLoading, setMessageLoading] = useState(false);
 
   useEffect(() => {
-    fetchRatings();
-  }, [params.id]);
+    if (profile?.role === "recipient" && params.recipientId === profile.id) {
+      fetchMessages();
+    }
+  }, [params.id, profile]);
 
-  const fetchRatings = async () => {
+  const fetchMessages = async () => {
     try {
       const { data, error } = await supabase
-        .from("ratings")
+        .from("messages")
         .select(
           `
           *,
-          profiles:recipient_id (
+          profiles:sender_id (
             full_name
           )
         `
         )
-        .eq("donation_id", params.id);
+        .eq("campaign_id", params.id)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-
-      setRatings(data || []);
-      if (data && data.length > 0) {
-        const avg =
-          data.reduce((sum, rating) => sum + rating.rating, 0) / data.length;
-        setAverageRating(avg);
-      }
+      setMessages(data || []);
     } catch (error) {
-      console.error("Error fetching ratings:", error);
+      console.error("Error fetching messages:", error);
     }
   };
 
-  const handleRequestDonation = () => {
+  const handleSendMessage = () => {
     if (!profile) return;
-    setRequestModal(true);
+    setMessageModal(true);
   };
 
-  const submitRequest = async () => {
-    if (!profile || !requestMessage.trim()) return;
-    setRequestLoading(true);
+  const submitMessage = async () => {
+    if (!profile || !messageText.trim()) return;
+    setMessageLoading(true);
     try {
-      const { error } = await supabase.from("requests").insert({
-        donation_id: params.id as string,
-        recipient_id: profile.id,
-        message: requestMessage.trim(),
+      const { error } = await supabase.from("messages").insert({
+        campaign_id: params.id as string,
+        sender_id: profile.id,
+        receiver_id: params.recipientId as string,
+        content: messageText.trim(),
       });
       if (error) throw error;
-      setRequestModal(false);
-      setRequestMessage("");
-      Alert.alert("Success", "Request sent successfully!");
+      setMessageModal(false);
+      setMessageText("");
+      Alert.alert("Success", "Message sent successfully!");
+      // Optionally refresh messages if recipient
+      if (profile.role === "recipient" && params.recipientId === profile.id) {
+        fetchMessages();
+      }
     } catch (error) {
-      console.error("Error sending request:", error);
-      Alert.alert("Error", "Failed to send request");
+      console.error("Error sending message:", error);
+      Alert.alert("Error", "Failed to send message");
     } finally {
-      setRequestLoading(false);
+      setMessageLoading(false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "available":
+      case "active":
         return "#10B981";
-      case "claimed":
+      case "paused":
         return "#F59E0B";
       case "completed":
         return "#6B7280";
       default:
         return "#6B7280";
     }
-  };
-
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, index) => (
-      <Star
-        key={index}
-        size={16}
-        color={index < rating ? "#F59E0B" : "#D1D5DB"}
-        fill={index < rating ? "#F59E0B" : "transparent"}
-      />
-    ));
   };
 
   return (
@@ -129,7 +114,7 @@ export default function DonationDetailsScreen() {
         >
           <ArrowLeft size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Donation Details</Text>
+        <Text style={styles.headerTitle}>Campaign Details</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -172,47 +157,36 @@ export default function DonationDetailsScreen() {
             <Text style={styles.categoryValue}>{params.category}</Text>
           </View>
 
+          {params.goalAmount && (
+            <View style={styles.goalContainer}>
+              <DollarSign size={20} color="#10B981" />
+              <Text style={styles.goalText}>Goal: ${params.goalAmount}</Text>
+            </View>
+          )}
+
           <Text style={styles.description}>{params.description}</Text>
 
-          <View style={styles.donorSection}>
-            <View style={styles.donorInfo}>
+          <View style={styles.recipientSection}>
+            <View style={styles.recipientInfo}>
               <User size={20} color="#2563EB" />
-              <Text style={styles.donorName}>{params.donorName}</Text>
-              {averageRating > 0 && (
-                <View style={styles.ratingContainer}>
-                  <Star size={16} color="#F59E0B" fill="#F59E0B" />
-                  <Text style={styles.ratingText}>
-                    {averageRating.toFixed(1)}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={styles.reportButton}
-                onPress={() => setReportModal(true)}
-              >
-                <Flag size={16} color="#EF4444" />
-                <Text style={styles.reportButtonText}>Report</Text>
-              </TouchableOpacity>
+              <Text style={styles.recipientName}>{params.recipientName}</Text>
             </View>
           </View>
 
-          {profile?.role === "recipient" && params.status === "available" && (
+          {profile?.role === "donor" && (
             <>
               <TouchableOpacity
-                style={styles.requestButton}
-                onPress={handleRequestDonation}
+                style={styles.messageButton}
+                onPress={handleSendMessage}
               >
                 <MessageCircle size={20} color="#ffffff" />
-                <Text style={styles.requestButtonText}>Request This Item</Text>
+                <Text style={styles.messageButtonText}>Send Message</Text>
               </TouchableOpacity>
               <Modal
-                visible={requestModal}
+                visible={messageModal}
                 animationType="slide"
                 transparent
-                onRequestClose={() => setRequestModal(false)}
+                onRequestClose={() => setMessageModal(false)}
               >
                 <View
                   style={{
@@ -237,7 +211,7 @@ export default function DonationDetailsScreen() {
                         marginBottom: 12,
                       }}
                     >
-                      Request Donation
+                      Send Message
                     </Text>
                     <Text
                       style={{
@@ -245,8 +219,7 @@ export default function DonationDetailsScreen() {
                         marginBottom: 12,
                       }}
                     >
-                      Send a message to the donor explaining why you need this
-                      item:
+                      Send a message to {params.recipientName}
                     </Text>
                     <RNTextInput
                       style={{
@@ -260,10 +233,10 @@ export default function DonationDetailsScreen() {
                       }}
                       multiline
                       numberOfLines={4}
-                      value={requestMessage}
-                      onChangeText={setRequestMessage}
+                      value={messageText}
+                      onChangeText={setMessageText}
                       placeholder="Type your message..."
-                      editable={!requestLoading}
+                      editable={!messageLoading}
                     />
                     <View
                       style={{
@@ -273,9 +246,12 @@ export default function DonationDetailsScreen() {
                       }}
                     >
                       <TouchableOpacity
-                        onPress={() => setRequestModal(false)}
-                        disabled={requestLoading}
-                        style={{ paddingVertical: 8, paddingHorizontal: 16 }}
+                        onPress={() => setMessageModal(false)}
+                        disabled={messageLoading}
+                        style={{
+                          paddingVertical: 8,
+                          paddingHorizontal: 16,
+                        }}
                       >
                         <Text
                           style={{
@@ -287,18 +263,18 @@ export default function DonationDetailsScreen() {
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={submitRequest}
-                        disabled={requestLoading || !requestMessage.trim()}
+                        onPress={submitMessage}
+                        disabled={messageLoading || !messageText.trim()}
                         style={{
                           backgroundColor: "#2563EB",
                           borderRadius: 8,
                           paddingVertical: 8,
                           paddingHorizontal: 16,
                           opacity:
-                            requestLoading || !requestMessage.trim() ? 0.6 : 1,
+                            messageLoading || !messageText.trim() ? 0.6 : 1,
                         }}
                       >
-                        {requestLoading ? (
+                        {messageLoading ? (
                           <ActivityIndicator color="#fff" />
                         ) : (
                           <Text
@@ -307,7 +283,7 @@ export default function DonationDetailsScreen() {
                               fontWeight: "600",
                             }}
                           >
-                            Send Request
+                            Send
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -318,61 +294,30 @@ export default function DonationDetailsScreen() {
             </>
           )}
 
-          {profile?.role === "recipient" && params.status === "completed" && (
-            <TouchableOpacity
-              style={styles.reviewButton}
-              onPress={() => setReviewModal(true)}
-            >
-              <Star size={20} color="#ffffff" />
-              <Text style={styles.reviewButtonText}>Write a Review</Text>
-            </TouchableOpacity>
-          )}
-
-          {ratings.length > 0 && (
-            <View style={styles.reviewsSection}>
-              <Text style={styles.reviewsTitle}>
-                Reviews ({ratings.length})
-              </Text>
-              {ratings.map((rating) => (
-                <View key={rating.id} style={styles.reviewCard}>
-                  <View style={styles.reviewHeader}>
-                    <Text style={styles.reviewerName}>
-                      {rating.profiles?.full_name}
-                    </Text>
-                    <View style={styles.reviewStars}>
-                      {renderStars(rating.rating)}
+          {profile?.role === "recipient" &&
+            params.recipientId === profile.id &&
+            messages.length > 0 && (
+              <View style={styles.messagesSection}>
+                <Text style={styles.messagesTitle}>
+                  Messages ({messages.length})
+                </Text>
+                {messages.map((message) => (
+                  <View key={message.id} style={styles.messageCard}>
+                    <View style={styles.messageHeader}>
+                      <Text style={styles.senderName}>
+                        {message.profiles?.full_name}
+                      </Text>
+                      <Text style={styles.messageDate}>
+                        {new Date(message.created_at).toLocaleDateString()}
+                      </Text>
                     </View>
+                    <Text style={styles.messageContent}>{message.content}</Text>
                   </View>
-                  {rating.comment && (
-                    <Text style={styles.reviewComment}>{rating.comment}</Text>
-                  )}
-                  <Text style={styles.reviewDate}>
-                    {new Date(rating.created_at).toLocaleDateString()}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+                ))}
+              </View>
+            )}
         </View>
       </ScrollView>
-
-      <ReviewModal
-        visible={reviewModal}
-        onClose={() => setReviewModal(false)}
-        donationId={params.id as string}
-        donorId={params.donorId as string}
-        recipientId={profile?.id || ""}
-        donorName={params.donorName as string}
-      />
-
-      <ReportModal
-        visible={reportModal}
-        onClose={() => setReportModal(false)}
-        reporterId={profile?.id || ""}
-        reportedId={params.donorId as string}
-        reportedName={params.donorName as string}
-        type="user"
-      />
     </SafeAreaView>
   );
 }
@@ -472,13 +417,24 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
+  goalContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  goalText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#10B981",
+    marginLeft: 4,
+  },
   description: {
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
     marginBottom: 24,
   },
-  donorSection: {
+  recipientSection: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -488,47 +444,18 @@ const styles = StyleSheet.create({
     borderColor: "#F3F4F6",
     marginBottom: 24,
   },
-  donorInfo: {
+  recipientInfo: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
-  donorName: {
+  recipientName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#2563EB",
     marginLeft: 8,
-    marginRight: 12,
   },
-  ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#F59E0B",
-    marginLeft: 4,
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  reportButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  reportButtonText: {
-    fontSize: 14,
-    color: "#EF4444",
-    fontWeight: "500",
-    marginLeft: 4,
-  },
-  requestButton: {
+  messageButton: {
     backgroundColor: "#2563EB",
     flexDirection: "row",
     alignItems: "center",
@@ -537,64 +464,45 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
   },
-  requestButtonText: {
+  messageButtonText: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
   },
-  reviewButton: {
-    backgroundColor: "#F59E0B",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  reviewButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  reviewsSection: {
+  messagesSection: {
     marginTop: 24,
   },
-  reviewsTitle: {
+  messagesTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#1F2937",
     marginBottom: 16,
   },
-  reviewCard: {
+  messageCard: {
     backgroundColor: "#F9FAFB",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
   },
-  reviewHeader: {
+  messageHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
   },
-  reviewerName: {
+  senderName: {
     fontSize: 14,
     fontWeight: "600",
     color: "#1F2937",
   },
-  reviewStars: {
-    flexDirection: "row",
+  messageDate: {
+    fontSize: 12,
+    color: "#6B7280",
   },
-  reviewComment: {
+  messageContent: {
     fontSize: 14,
     color: "#374151",
     lineHeight: 20,
-    marginBottom: 8,
-  },
-  reviewDate: {
-    fontSize: 12,
-    color: "#6B7280",
   },
 });

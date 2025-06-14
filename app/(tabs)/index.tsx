@@ -1,10 +1,21 @@
+import ReportModal from "@/components/ReportModal";
+import ReviewModal from "@/components/ReviewModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
 import { useRouter } from "expo-router";
-import { Clock, Filter, MapPin, Search } from "lucide-react-native";
+import {
+  Clock,
+  Filter,
+  Flag,
+  MapPin,
+  MessageCircle,
+  Search,
+  Star,
+} from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   RefreshControl,
@@ -21,6 +32,10 @@ type Donation = Database["public"]["Tables"]["donations"]["Row"] & {
     full_name: string;
     avatar_url: string | null;
   };
+  ratings?: {
+    rating: number;
+    comment: string | null;
+  }[];
 };
 
 export default function HomeScreen() {
@@ -31,6 +46,26 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [reviewModal, setReviewModal] = useState<{
+    visible: boolean;
+    donationId: string;
+    donorId: string;
+    donorName: string;
+  }>({
+    visible: false,
+    donationId: "",
+    donorId: "",
+    donorName: "",
+  });
+  const [reportModal, setReportModal] = useState<{
+    visible: boolean;
+    reportedId: string;
+    reportedName: string;
+  }>({
+    visible: false,
+    reportedId: "",
+    reportedName: "",
+  });
 
   const categories = [
     "All",
@@ -56,6 +91,10 @@ export default function HomeScreen() {
           profiles:donor_id (
             full_name,
             avatar_url
+          ),
+          ratings (
+            rating,
+            comment
           )
         `
         )
@@ -84,6 +123,78 @@ export default function HomeScreen() {
     fetchDonations();
   };
 
+  const handleRequestDonation = async (donationId: string) => {
+    if (!profile) return;
+
+    Alert.prompt(
+      "Request Donation",
+      "Send a message to the donor explaining why you need this item:",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send Request",
+          onPress: async (message) => {
+            if (!message?.trim()) return;
+
+            try {
+              const { error } = await supabase.from("requests").insert({
+                donation_id: donationId,
+                recipient_id: profile.id,
+                message: message.trim(),
+              });
+
+              if (error) throw error;
+              Alert.alert("Success", "Request sent successfully!");
+            } catch (error) {
+              console.error("Error sending request:", error);
+              Alert.alert("Error", "Failed to send request");
+            }
+          },
+        },
+      ],
+      "plain-text"
+    );
+  };
+
+  const handleReviewDonor = (
+    donationId: string,
+    donorId: string,
+    donorName: string
+  ) => {
+    setReviewModal({
+      visible: true,
+      donationId,
+      donorId,
+      donorName,
+    });
+  };
+
+  const handleReportUser = (userId: string, userName: string) => {
+    setReportModal({
+      visible: true,
+      reportedId: userId,
+      reportedName: userName,
+    });
+  };
+
+  const handleViewDetails = (donation: Donation) => {
+    router.push({
+      pathname: "/donation-details",
+      params: {
+        id: donation.id,
+        title: donation.title,
+        description: donation.description,
+        category: donation.category,
+        location: donation.location,
+        imageUrl: donation.image_url || "",
+        status: donation.status,
+        createdAt: donation.created_at,
+        donorName: donation.profiles?.full_name || "",
+        donorId: donation.donor_id,
+      },
+    });
+  };
+
   const filteredDonations = donations.filter((donation) => {
     const matchesSearch =
       donation.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -93,59 +204,115 @@ export default function HomeScreen() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleDonationPress = (donation: Donation) => {
-    router.push({
-      pathname: "/donation-details",
-      params: { donationId: donation.id },
-    });
-  };
+  const renderDonationCard = ({ item }: { item: Donation }) => {
+    const averageRating =
+      item.ratings && item.ratings.length > 0
+        ? item.ratings.reduce((sum, rating) => sum + rating.rating, 0) /
+          item.ratings.length
+        : 0;
 
-  const renderDonationCard = ({ item }: { item: Donation }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => handleDonationPress(item)}
-    >
-      {item.image_url && (
-        <Image source={{ uri: item.image_url }} style={styles.cardImage} />
-      )}
-      <View style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.title}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(item.status) },
-            ]}
-          >
-            <Text style={styles.statusText}>{item.status}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-
-        <View style={styles.cardFooter}>
-          <View style={styles.locationContainer}>
-            <MapPin size={16} color="#6B7280" />
-            <Text style={styles.locationText}>{item.location}</Text>
-          </View>
-          <View style={styles.timeContainer}>
-            <Clock size={16} color="#6B7280" />
-            <Text style={styles.timeText}>
-              {new Date(item.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-        </View>
-
-        {profile?.role === "recipient" && (
-          <View style={styles.donorInfo}>
-            <Text style={styles.donorName}>by {item.profiles?.full_name}</Text>
-          </View>
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => handleViewDetails(item)}
+      >
+        {item.image_url && (
+          <Image source={{ uri: item.image_url }} style={styles.cardImage} />
         )}
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.cardContent}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{item.title}</Text>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: getStatusColor(item.status) },
+              ]}
+            >
+              <Text style={styles.statusText}>{item.status}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.cardDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+
+          <View style={styles.cardFooter}>
+            <View style={styles.locationContainer}>
+              <MapPin size={16} color="#6B7280" />
+              <Text style={styles.locationText}>{item.location}</Text>
+            </View>
+            <View style={styles.timeContainer}>
+              <Clock size={16} color="#6B7280" />
+              <Text style={styles.timeText}>
+                {new Date(item.created_at).toLocaleDateString()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.donorInfo}>
+            <View style={styles.donorDetails}>
+              <Text style={styles.donorName}>
+                by {item.profiles?.full_name}
+              </Text>
+              {averageRating > 0 && (
+                <View style={styles.ratingContainer}>
+                  <Star size={14} color="#F59E0B" fill="#F59E0B" />
+                  <Text style={styles.ratingText}>
+                    {averageRating.toFixed(1)}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.actionButtons}>
+              {profile?.role === "recipient" && item.status === "available" && (
+                <TouchableOpacity
+                  style={styles.requestButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleRequestDonation(item.id);
+                  }}
+                >
+                  <MessageCircle size={16} color="#2563EB" />
+                  <Text style={styles.requestButtonText}>Request</Text>
+                </TouchableOpacity>
+              )}
+
+              {profile?.role === "recipient" && item.status === "completed" && (
+                <TouchableOpacity
+                  style={styles.reviewButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleReviewDonor(
+                      item.id,
+                      item.donor_id,
+                      item.profiles?.full_name || ""
+                    );
+                  }}
+                >
+                  <Star size={16} color="#F59E0B" />
+                  <Text style={styles.reviewButtonText}>Review</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.reportButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleReportUser(
+                    item.donor_id,
+                    item.profiles?.full_name || ""
+                  );
+                }}
+              >
+                <Flag size={14} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -228,6 +395,24 @@ export default function HomeScreen() {
             </Text>
           </View>
         }
+      />
+
+      <ReviewModal
+        visible={reviewModal.visible}
+        onClose={() => setReviewModal({ ...reviewModal, visible: false })}
+        donationId={reviewModal.donationId}
+        donorId={reviewModal.donorId}
+        recipientId={profile?.id || ""}
+        donorName={reviewModal.donorName}
+      />
+
+      <ReportModal
+        visible={reportModal.visible}
+        onClose={() => setReportModal({ ...reportModal, visible: false })}
+        reporterId={profile?.id || ""}
+        reportedId={reportModal.reportedId}
+        reportedName={reportModal.reportedName}
+        type="user"
       />
     </SafeAreaView>
   );
@@ -350,6 +535,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 12,
   },
   locationContainer: {
     flexDirection: "row",
@@ -371,15 +557,71 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   donorInfo: {
-    marginTop: 8,
-    paddingTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
+  },
+  donorDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
   donorName: {
     fontSize: 12,
     color: "#2563EB",
     fontWeight: "500",
+    marginRight: 8,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ratingText: {
+    fontSize: 12,
+    color: "#F59E0B",
+    fontWeight: "500",
+    marginLeft: 2,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  requestButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  requestButtonText: {
+    fontSize: 12,
+    color: "#2563EB",
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  reviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  reviewButtonText: {
+    fontSize: 12,
+    color: "#F59E0B",
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  reportButton: {
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: "#FEF2F2",
   },
   emptyContainer: {
     alignItems: "center",
