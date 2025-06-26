@@ -1,17 +1,97 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs } from "expo-router";
 import {
+  Flag,
   HeartIcon,
   Home,
   MessageSquare,
   Package,
+  Shield,
   User,
 } from "lucide-react-native";
 
 export default function TabLayout() {
   const { profile } = useAuth();
   const isDonor = profile?.role === "donor";
+  const isAdmin = profile?.role === "admin";
 
+  console.log("Current user role:", profile?.role, "isAdmin:", isAdmin);
+
+  // If user is admin, show ONLY the admin tab
+  if (isAdmin) {
+    return (
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: "#2563EB",
+          tabBarInactiveTintColor: "#6B7280",
+          tabBarStyle: {
+            backgroundColor: "#ffffff",
+            borderTopWidth: 1,
+            borderTopColor: "#E5E7EB",
+            paddingTop: 8,
+            paddingBottom: 8,
+            height: 80,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: "500",
+            marginTop: 4,
+          },
+        }}
+      >
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: "Admin Dashboard",
+            tabBarIcon: ({ size, color }) => (
+              <Shield size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="reports"
+          options={{
+            title: "Reports",
+            tabBarIcon: ({ size, color }) => <Flag size={size} color={color} />,
+          }}
+        />
+        {/* Hide all other screens for admin */}
+        <Tabs.Screen
+          name="index"
+          options={{
+            href: null, // This hides the tab
+          }}
+        />
+        <Tabs.Screen
+          name="requests"
+          options={{
+            href: null, // This hides the tab
+          }}
+        />
+        <Tabs.Screen
+          name="create"
+          options={{
+            href: null, // This hides the tab
+          }}
+        />
+        <Tabs.Screen
+          name="campaigns"
+          options={{
+            href: null, // This hides the tab
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            href: null, // This hides the tab
+          }}
+        />
+      </Tabs>
+    );
+  }
+
+  // Regular users (donors and recipients) see normal tabs - NO ADMIN TAB
   return (
     <Tabs
       screenOptions={{
@@ -69,11 +149,26 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
+        }}
+      />
+
+      {/* Hide admin tab for non-admin users */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          href: null, // This completely hides the tab
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          href: null, // Hide reports tab for non-admins
         }}
       />
     </Tabs>

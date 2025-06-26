@@ -34,13 +34,23 @@ export default function DonationDetailsScreen() {
   const [ratings, setRatings] = useState<any[]>([]);
   const [averageRating, setAverageRating] = useState(0);
   const [reviewModal, setReviewModal] = useState(false);
-  const [reportModal, setReportModal] = useState(false);
+  const [reportModal, setReportModal] = useState({
+    visible: false,
+    reportedId: "",
+    reportedName: "",
+    type: "donation",
+  });
   const [requestModal, setRequestModal] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [requestLoading, setRequestLoading] = useState(false);
+  const [showRatingForm, setShowRatingForm] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [hasRated, setHasRated] = useState(false);
 
   useEffect(() => {
     fetchRatings();
+    fetchRating();
   }, [params.id]);
 
   const fetchRatings = async () => {
@@ -70,6 +80,18 @@ export default function DonationDetailsScreen() {
     }
   };
 
+  const fetchRating = async () => {
+    if (profile?.id && params.id) {
+      const { data } = await supabase
+        .from("ratings")
+        .select("id")
+        .eq("donation_id", params.id)
+        .eq("recipient_id", profile.id)
+        .single();
+      setHasRated(!!data);
+    }
+  };
+
   const handleRequestDonation = () => {
     if (!profile) return;
     setRequestModal(true);
@@ -96,6 +118,15 @@ export default function DonationDetailsScreen() {
     }
   };
 
+  const handleReportDonation = () => {
+    setReportModal({
+      visible: true,
+      reportedId: params.id as string,
+      reportedName: params.title as string,
+      type: "donation",
+    });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "available":
@@ -118,6 +149,27 @@ export default function DonationDetailsScreen() {
         fill={index < rating ? "#F59E0B" : "transparent"}
       />
     ));
+  };
+
+  const submitRating = async () => {
+    if (!rating) {
+      Alert.alert("Please select a star rating.");
+      return;
+    }
+    const { error } = await supabase.from("ratings").insert({
+      donation_id: params.id,
+      donor_id: params.donorId,
+      recipient_id: profile.id,
+      rating,
+      comment: comment.trim() || null,
+    });
+    if (error) {
+      Alert.alert("Error", "Failed to submit rating.");
+    } else {
+      Alert.alert("Thank you!", "Your rating has been submitted.");
+      setHasRated(true);
+      setShowRatingForm(false);
+    }
   };
 
   return (
@@ -191,7 +243,7 @@ export default function DonationDetailsScreen() {
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={styles.reportButton}
-                onPress={() => setReportModal(true)}
+                onPress={handleReportDonation}
               >
                 <Flag size={16} color="#EF4444" />
                 <Text style={styles.reportButtonText}>Report</Text>
@@ -353,6 +405,58 @@ export default function DonationDetailsScreen() {
               ))}
             </View>
           )}
+
+          {profile?.id === params.recipientId && !hasRated && (
+            <View
+              style={{
+                marginVertical: 16,
+                backgroundColor: "#fff",
+                borderRadius: 12,
+                padding: 16,
+              }}
+            >
+              <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
+                Rate the Donor
+              </Text>
+              <View style={{ flexDirection: "row", marginBottom: 8 }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                    <Star
+                      size={32}
+                      color={star <= rating ? "#F59E0B" : "#D1D5DB"}
+                      fill={star <= rating ? "#F59E0B" : "none"}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <RNTextInput
+                placeholder="Leave a comment (optional)"
+                value={comment}
+                onChangeText={setComment}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#ccc",
+                  borderRadius: 8,
+                  padding: 8,
+                  marginBottom: 8,
+                }}
+                multiline
+              />
+              <TouchableOpacity
+                onPress={submitRating}
+                style={{
+                  backgroundColor: "#2563EB",
+                  padding: 12,
+                  borderRadius: 8,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  Submit Rating
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -366,12 +470,12 @@ export default function DonationDetailsScreen() {
       />
 
       <ReportModal
-        visible={reportModal}
-        onClose={() => setReportModal(false)}
+        visible={reportModal.visible}
+        onClose={() => setReportModal({ ...reportModal, visible: false })}
         reporterId={profile?.id || ""}
-        reportedId={params.donorId as string}
-        reportedName={params.donorName as string}
-        type="user"
+        reportedId={reportModal.reportedId}
+        reportedName={reportModal.reportedName}
+        type={reportModal.type}
       />
     </SafeAreaView>
   );

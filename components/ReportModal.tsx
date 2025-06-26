@@ -18,8 +18,24 @@ interface ReportModalProps {
   reporterId: string;
   reportedId: string;
   reportedName: string;
-  type: "user" | "donation";
+  type: "user" | "donation" | "campaign" | "request";
 }
+
+const typeOptions = [
+  { label: "User", value: "user" },
+  { label: "Donation", value: "donation" },
+  { label: "Campaign", value: "campaign" },
+  { label: "Request", value: "request" },
+];
+
+const reasons = [
+  "Inappropriate content",
+  "Spam or misleading information",
+  "Harassment or abuse",
+  "Fraud or scam",
+  "Violation of terms",
+  "Other",
+];
 
 export default function ReportModal({
   visible,
@@ -27,54 +43,39 @@ export default function ReportModal({
   reporterId,
   reportedId,
   reportedName,
-  type,
+  type: initialType,
 }: ReportModalProps) {
+  const [selectedType, setSelectedType] = useState(initialType);
   const [selectedReason, setSelectedReason] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const reasons = [
-    "Inappropriate content",
-    "Spam or misleading information",
-    "Harassment or abuse",
-    "Fraud or scam",
-    "Violation of terms",
-    "Other",
-  ];
-
-  const handleSubmitReport = async () => {
-    if (!selectedReason) {
-      Alert.alert("Error", "Please select a reason for reporting");
+  const handleSubmit = async () => {
+    if (!selectedType || !selectedReason || !reporterId || !reportedId) {
+      Alert.alert("Error", "Please fill all required fields.");
       return;
     }
-
     setLoading(true);
-
-    try {
-      const { error } = await supabase.from("reports").insert({
-        reporter_id: reporterId,
-        reported_id: reportedId,
-        type,
-        reason: selectedReason,
-        description: description.trim() || null,
-      });
-
-      if (error) throw error;
-
-      Alert.alert(
-        "Success",
-        "Report submitted successfully. We will review it shortly."
-      );
-      onClose();
+    const { error } = await supabase.from("reports").insert({
+      reporter_id: reporterId,
+      reported_id: reportedId,
+      type: selectedType,
+      reason: selectedReason,
+      description: description.trim() || null,
+    });
+    setLoading(false);
+    if (error) {
+      Alert.alert("Error", "Failed to submit report.");
+    } else {
+      Alert.alert("Success", "Report submitted.");
+      setSelectedType(initialType);
       setSelectedReason("");
       setDescription("");
-    } catch (error) {
-      console.error("Error submitting report:", error);
-      Alert.alert("Error", "Failed to submit report");
-    } finally {
-      setLoading(false);
+      onClose();
     }
   };
+
+  if (!visible) return null;
 
   return (
     <Modal
@@ -88,78 +89,85 @@ export default function ReportModal({
           <View style={styles.header}>
             <View style={styles.titleContainer}>
               <Flag size={24} color="#EF4444" />
-              <Text style={styles.title}>
-                Report {type === "user" ? "User" : "Donation"}
-              </Text>
+              <Text style={styles.title}>Report</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.subtitle}>
-            Report {reportedName} for inappropriate behavior
-          </Text>
-
-          <ScrollView style={styles.content}>
-            <View style={styles.reasonsContainer}>
-              <Text style={styles.label}>Reason for reporting *</Text>
-              {reasons.map((reason) => (
+          <Text style={styles.title}>Report {reportedName}</Text>
+          <ScrollView>
+            <Text style={styles.label}>Type *</Text>
+            <View style={styles.row}>
+              {typeOptions.map((opt) => (
                 <TouchableOpacity
-                  key={reason}
+                  key={opt.value}
                   style={[
-                    styles.reasonOption,
-                    selectedReason === reason && styles.reasonOptionSelected,
+                    styles.typeBtn,
+                    selectedType === opt.value && styles.typeBtnActive,
                   ]}
-                  onPress={() => setSelectedReason(reason)}
+                  onPress={() =>
+                    setSelectedType(
+                      opt.value as "user" | "donation" | "campaign" | "request"
+                    )
+                  }
                 >
-                  <View
-                    style={[
-                      styles.radioButton,
-                      selectedReason === reason && styles.radioButtonSelected,
-                    ]}
-                  />
                   <Text
-                    style={[
-                      styles.reasonText,
-                      selectedReason === reason && styles.reasonTextSelected,
-                    ]}
+                    style={
+                      selectedType === opt.value
+                        ? styles.typeBtnTextActive
+                        : styles.typeBtnText
+                    }
                   >
-                    {reason}
+                    {opt.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Additional details (Optional)</Text>
-              <TextInput
-                style={styles.textArea}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Provide more details about the issue..."
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
+            <Text style={styles.label}>Reason *</Text>
+            {reasons.map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                style={[
+                  styles.reasonBtn,
+                  selectedReason === reason && styles.reasonBtnActive,
+                ]}
+                onPress={() => setSelectedReason(reason)}
+              >
+                <Text
+                  style={
+                    selectedReason === reason
+                      ? styles.reasonBtnTextActive
+                      : styles.reasonBtnText
+                  }
+                >
+                  {reason}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <Text style={styles.label}>Description (optional)</Text>
+            <TextInput
+              style={styles.textarea}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              placeholder="Add details..."
+            />
           </ScrollView>
 
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.cancel} onPress={onClose}>
+              <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.submitButton,
-                loading && styles.submitButtonDisabled,
-              ]}
-              onPress={handleSubmitReport}
+              style={[styles.submit, loading && styles.submitDisabled]}
+              onPress={handleSubmit}
               disabled={loading}
             >
-              <Text style={styles.submitButtonText}>
-                {loading ? "Submitting..." : "Submit Report"}
+              <Text style={styles.submitText}>
+                {loading ? "Submitting..." : "Submit"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -183,7 +191,7 @@ const styles = StyleSheet.create({
     padding: 24,
     width: "100%",
     maxWidth: 400,
-    maxHeight: "80%",
+    maxHeight: "90%",
   },
   header: {
     flexDirection: "row",
@@ -199,108 +207,102 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#EF4444",
+    marginLeft: 8,
   },
   closeButton: {
     padding: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: "#6B7280",
-    marginBottom: 24,
+    color: "#1F2937",
+    marginBottom: 12,
   },
   content: {
     flex: 1,
   },
-  reasonsContainer: {
-    marginBottom: 24,
-  },
   label: {
-    fontSize: 16,
+    marginTop: 16,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
-    marginBottom: 12,
-  },
-  reasonOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    color: "#1F2937",
     marginBottom: 8,
-    backgroundColor: "#F9FAFB",
   },
-  reasonOptionSelected: {
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#2563EB",
+  row: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 8,
   },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    marginRight: 12,
+  typeBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    marginRight: 8,
+    marginBottom: 8,
   },
-  radioButtonSelected: {
-    borderColor: "#2563EB",
+  typeBtnActive: {
     backgroundColor: "#2563EB",
   },
-  reasonText: {
-    fontSize: 16,
-    color: "#374151",
+  typeBtnText: {
+    color: "#1F2937",
   },
-  reasonTextSelected: {
-    color: "#2563EB",
-    fontWeight: "500",
+  typeBtnTextActive: {
+    color: "#fff",
   },
-  inputContainer: {
-    marginBottom: 24,
+  reasonBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    marginBottom: 8,
   },
-  textArea: {
-    height: 100,
+  reasonBtnActive: {
+    backgroundColor: "#EF4444",
+  },
+  reasonBtnText: {
+    color: "#1F2937",
+  },
+  reasonBtnTextActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  textarea: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
-    backgroundColor: "#F9FAFB",
+    color: "#1F2937",
     textAlignVertical: "top",
+    minHeight: 80,
+    backgroundColor: "#fff",
   },
-  buttonContainer: {
+  actions: {
     flexDirection: "row",
-    gap: 12,
+    justifyContent: "flex-end",
+    marginTop: 16,
   },
-  cancelButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
+  cancel: {
+    marginRight: 16,
+    padding: 10,
   },
-  cancelButtonText: {
+  cancelText: {
+    color: "#6B7280",
     fontSize: 16,
     fontWeight: "600",
-    color: "#6B7280",
   },
-  submitButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
+  submit: {
     backgroundColor: "#EF4444",
+    borderRadius: 8,
+    padding: 10,
+    minWidth: 80,
     alignItems: "center",
-    justifyContent: "center",
   },
-  submitButtonDisabled: {
+  submitDisabled: {
     opacity: 0.6,
   },
-  submitButtonText: {
+  submitText: {
+    color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
+    fontWeight: "700",
   },
 });

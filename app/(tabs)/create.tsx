@@ -164,10 +164,10 @@ export default function CreateScreen() {
         category: donationCategory,
         location: donationLocation,
         image_url: imageUrl,
-        status: "available",
+        status: "pending",
       });
       if (insertResult.error) throw insertResult.error;
-      Alert.alert("Success", "Donation created successfully!", [
+      Alert.alert("Success", "Donation submitted for approval!", [
         { text: "OK", onPress: () => router.push("/(tabs)") },
       ]);
       setDonationTitle("");
@@ -214,11 +214,11 @@ export default function CreateScreen() {
         location: campaignLocation,
         goal_amount: campaignGoal ? parseFloat(campaignGoal) : null,
         image_url: imageUrl,
-        status: "active",
+        status: "pending",
       });
       if (insertResult.error) throw insertResult.error;
-      Alert.alert("Success", "Campaign created successfully!", [
-        { text: "OK", onPress: () => router.push({ pathname: "/campaings" }) },
+      Alert.alert("Success", "Campaign submitted for approval!", [
+        { text: "OK", onPress: () => router.push({ pathname: "/campaigns" }) },
       ]);
       setCampaignTitle("");
       setCampaignDescription("");

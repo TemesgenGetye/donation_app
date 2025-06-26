@@ -18,6 +18,8 @@ export interface Database {
           role: "donor" | "recipient" | "admin";
           avatar_url: string | null;
           location: string | null;
+          verification_image_url: string | null;
+          recipient_status: "unrequested" | "requested" | "approved";
           created_at: string;
           updated_at: string;
         };
@@ -29,6 +31,8 @@ export interface Database {
           role?: "donor" | "recipient" | "admin";
           avatar_url?: string | null;
           location?: string | null;
+          verification_image_url?: string | null;
+          recipient_status?: "unrequested" | "requested" | "approved";
           created_at?: string;
           updated_at?: string;
         };
@@ -40,6 +44,8 @@ export interface Database {
           role?: "donor" | "recipient" | "admin";
           avatar_url?: string | null;
           location?: string | null;
+          verification_image_url?: string | null;
+          recipient_status?: "unrequested" | "requested" | "approved";
           created_at?: string;
           updated_at?: string;
         };
@@ -53,7 +59,12 @@ export interface Database {
           category: string;
           location: string;
           image_url: string | null;
-          status: "available" | "claimed" | "completed";
+          status:
+            | "pending"
+            | "available"
+            | "claimed"
+            | "completed"
+            | "rejected";
           created_at: string;
           updated_at: string;
         };
@@ -65,7 +76,12 @@ export interface Database {
           category: string;
           location: string;
           image_url?: string | null;
-          status?: "available" | "claimed" | "completed";
+          status?:
+            | "pending"
+            | "available"
+            | "claimed"
+            | "completed"
+            | "rejected";
           created_at?: string;
           updated_at?: string;
         };
@@ -77,7 +93,12 @@ export interface Database {
           category?: string;
           location?: string;
           image_url?: string | null;
-          status?: "available" | "claimed" | "completed";
+          status?:
+            | "pending"
+            | "available"
+            | "claimed"
+            | "completed"
+            | "rejected";
           created_at?: string;
           updated_at?: string;
         };
@@ -182,7 +203,7 @@ export interface Database {
           category: string;
           location: string;
           image_url: string | null;
-          status: "active" | "paused" | "completed";
+          status: "pending" | "active" | "paused" | "completed" | "rejected";
           created_at: string;
           updated_at: string;
         };
@@ -195,7 +216,7 @@ export interface Database {
           category: string;
           location: string;
           image_url?: string | null;
-          status?: "active" | "paused" | "completed";
+          status?: "pending" | "active" | "paused" | "completed" | "rejected";
           created_at?: string;
           updated_at?: string;
         };
@@ -208,7 +229,7 @@ export interface Database {
           category?: string;
           location?: string;
           image_url?: string | null;
-          status?: "active" | "paused" | "completed";
+          status?: "pending" | "active" | "paused" | "completed" | "rejected";
           created_at?: string;
           updated_at?: string;
         };

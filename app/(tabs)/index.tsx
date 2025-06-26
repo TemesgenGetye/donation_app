@@ -46,25 +46,17 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [reviewModal, setReviewModal] = useState<{
-    visible: boolean;
-    donationId: string;
-    donorId: string;
-    donorName: string;
-  }>({
+  const [reviewModal, setReviewModal] = useState({
     visible: false,
-    donationId: "",
     donorId: "",
     donorName: "",
+    donationId: "",
   });
-  const [reportModal, setReportModal] = useState<{
-    visible: boolean;
-    reportedId: string;
-    reportedName: string;
-  }>({
+  const [reportModal, setReportModal] = useState({
     visible: false,
     reportedId: "",
     reportedName: "",
+    type: "donation",
   });
 
   const categories = [
@@ -166,6 +158,7 @@ export default function HomeScreen() {
       donationId,
       donorId,
       donorName,
+      donationId: donationId,
     });
   };
 
@@ -174,6 +167,16 @@ export default function HomeScreen() {
       visible: true,
       reportedId: userId,
       reportedName: userName,
+      type: "user",
+    });
+  };
+
+  const handleReportDonation = (donationId: string, donationTitle: string) => {
+    setReportModal({
+      visible: true,
+      reportedId: donationId,
+      reportedName: donationTitle,
+      type: "donation",
     });
   };
 
@@ -254,14 +257,33 @@ export default function HomeScreen() {
               <Text style={styles.donorName}>
                 by {item.profiles?.full_name}
               </Text>
-              {averageRating > 0 && (
-                <View style={styles.ratingContainer}>
-                  <Star size={14} color="#F59E0B" fill="#F59E0B" />
-                  <Text style={styles.ratingText}>
-                    {averageRating.toFixed(1)}
-                  </Text>
-                </View>
-              )}
+              <TouchableOpacity
+                style={{
+                  marginLeft: 6,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setReviewModal({
+                    visible: true,
+                    donorId: item.donor_id,
+                    donorName: item.profiles?.full_name || "",
+                    donationId: item.id,
+                  });
+                }}
+              >
+                <Star size={16} color="#F59E0B" fill="#F59E0B" />
+                <Text
+                  style={{
+                    marginLeft: 2,
+                    color: "#F59E0B",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Reviews
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.actionButtons}>
@@ -299,10 +321,7 @@ export default function HomeScreen() {
                 style={styles.reportButton}
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleReportUser(
-                    item.donor_id,
-                    item.profiles?.full_name || ""
-                  );
+                  handleReportDonation(item.id, item.profiles?.full_name || "");
                 }}
               >
                 <Flag size={14} color="#EF4444" />
@@ -412,7 +431,7 @@ export default function HomeScreen() {
         reporterId={profile?.id || ""}
         reportedId={reportModal.reportedId}
         reportedName={reportModal.reportedName}
-        type="user"
+        type={reportModal.type}
       />
     </SafeAreaView>
   );

@@ -1,3 +1,4 @@
+import ReportModal from "@/components/ReportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
@@ -6,6 +7,7 @@ import {
   Clock,
   DollarSign,
   Filter,
+  Flag,
   MapPin,
   MessageCircle,
   Search,
@@ -39,6 +41,15 @@ export default function CampaignsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [reportModal, setReportModal] = useState({
+    visible: false,
+    reportedId: "",
+    reportedName: "",
+    type: "campaign",
+  });
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
+    null
+  );
 
   const categories = [
     "All",
@@ -128,6 +139,15 @@ export default function CampaignsScreen() {
     );
   };
 
+  const handleReportCampaign = (campaignId: string, campaignTitle: string) => {
+    setReportModal({
+      visible: true,
+      reportedId: campaignId,
+      reportedName: campaignTitle,
+      type: "campaign",
+    });
+  };
+
   const handleViewDetails = (campaign: Campaign) => {
     router.push({
       pathname: "/campaing-details",
@@ -206,16 +226,28 @@ export default function CampaignsScreen() {
             by {item.profiles?.full_name}
           </Text>
           {profile?.role === "donor" && (
-            <TouchableOpacity
-              style={styles.messageButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                handleMessageCampaign(item);
-              }}
-            >
-              <MessageCircle size={16} color="#2563EB" />
-              <Text style={styles.messageButtonText}>Message</Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.messageButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleMessageCampaign(item);
+                }}
+              >
+                <MessageCircle size={16} color="#2563EB" />
+                <Text style={styles.messageButtonText}>Message</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reportButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleReportCampaign(item.id, item.title);
+                }}
+              >
+                <Flag size={16} color="#EF4444" />
+                <Text style={styles.reportButtonText}>Report</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -303,6 +335,15 @@ export default function CampaignsScreen() {
             </Text>
           </View>
         }
+      />
+
+      <ReportModal
+        visible={reportModal.visible}
+        onClose={() => setReportModal({ ...reportModal, visible: false })}
+        reporterId={profile?.id || ""}
+        reportedId={reportModal.reportedId}
+        reportedName={reportModal.reportedName}
+        type={reportModal.type}
       />
     </SafeAreaView>
   );
@@ -484,6 +525,24 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 4,
   },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  reportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  reportButtonText: {
+    fontSize: 12,
+    color: "#EF4444",
+    fontWeight: "500",
+    marginLeft: 4,
+  },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -493,5 +552,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 20,
+    margin: 20,
+    width: "90%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 16,
+  },
+  reportInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: "#1F2937",
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#F3F4F6",
+  },
+  submitButton: {
+    backgroundColor: "#EF4444",
+  },
+  cancelButtonText: {
+    color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  submitButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

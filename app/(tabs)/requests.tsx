@@ -1,7 +1,15 @@
+import ReportModal from "@/components/ReportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
-import { Check, Clock, MessageSquare, User, X } from "lucide-react-native";
+import {
+  Check,
+  Clock,
+  Flag,
+  MessageSquare,
+  User,
+  X,
+} from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -31,6 +39,13 @@ export default function RequestsScreen() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [reportModal, setReportModal] = useState({
+    visible: false,
+    reportedId: "",
+    reportedName: "",
+    type: "request",
+  });
+  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
 
   useEffect(() => {
     if (profile?.id) {
@@ -152,6 +167,15 @@ export default function RequestsScreen() {
     }
   };
 
+  const handleReportRequest = (request: Request) => {
+    setReportModal({
+      visible: true,
+      reportedId: request.id,
+      reportedName: request.donations?.title || "",
+      type: "request",
+    });
+  };
+
   const renderRequestCard = ({ item }: { item: Request }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -202,13 +226,19 @@ export default function RequestsScreen() {
             <Check size={16} color="#ffffff" />
             <Text style={styles.actionButtonText}>Approve</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.actionButton, styles.rejectButton]}
             onPress={() => handleRequestAction(item.id, "rejected")}
           >
             <X size={16} color="#ffffff" />
             <Text style={styles.actionButtonText}>Reject</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.reportButton]}
+            onPress={() => handleReportRequest(item)}
+          >
+            <Flag size={16} color="#ffffff" />
+            <Text style={styles.actionButtonText}>Report</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -268,6 +298,15 @@ export default function RequestsScreen() {
             </Text>
           </View>
         }
+      />
+
+      <ReportModal
+        visible={reportModal.visible}
+        onClose={() => setReportModal({ ...reportModal, visible: false })}
+        reporterId={profile?.id || ""}
+        reportedId={reportModal.reportedId}
+        reportedName={reportModal.reportedName}
+        type={reportModal.type}
       />
     </SafeAreaView>
   );
@@ -380,13 +419,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButton: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    gap: 4,
+    flex: 1,
+    gap: 8,
   },
   approveButton: {
     backgroundColor: "#10B981",
@@ -394,10 +434,13 @@ const styles = StyleSheet.create({
   rejectButton: {
     backgroundColor: "#EF4444",
   },
+  reportButton: {
+    backgroundColor: "#F59E0B",
+  },
   actionButtonText: {
     color: "#ffffff",
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   emptyContainer: {
     alignItems: "center",
@@ -408,5 +451,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 20,
+    margin: 20,
+    width: "90%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 16,
+  },
+  reportInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: "#1F2937",
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#F3F4F6",
+  },
+  submitButton: {
+    backgroundColor: "#EF4444",
+  },
+  cancelButtonText: {
+    color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  submitButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

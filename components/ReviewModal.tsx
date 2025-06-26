@@ -1,8 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import { Star, X } from "lucide-react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
+  FlatList,
   Modal,
   StyleSheet,
   Text,
@@ -31,6 +32,18 @@ export default function ReviewModal({
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState([]);
+
+  useEffect(() => {
+    if (visible && donorId) {
+      supabase
+        .from("ratings")
+        .select("rating, comment, created_at")
+        .eq("donor_id", donorId)
+        .order("created_at", { ascending: false })
+        .then(({ data }) => setReviews(data || []));
+    }
+  }, [visible, donorId]);
 
   const handleSubmitReview = async () => {
     if (rating === 0) {
@@ -132,6 +145,35 @@ export default function ReviewModal({
               </Text>
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.subtitle}>Reviews for {donorName}</Text>
+          <FlatList
+            data={reviews}
+            keyExtractor={(_, i) => i.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.reviewItem}>
+                <View style={styles.ratingContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={16}
+                      color={star <= item.rating ? "#F59E0B" : "#D1D5DB"}
+                      fill={star <= item.rating ? "#F59E0B" : "none"}
+                    />
+                  ))}
+                </View>
+                <Text style={styles.reviewDate}>
+                  {new Date(item.created_at).toLocaleDateString()}
+                </Text>
+                {item.comment && (
+                  <Text style={styles.reviewComment}>{item.comment}</Text>
+                )}
+              </View>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyReview}>No reviews yet.</Text>
+            }
+          />
         </View>
       </View>
     </Modal>
@@ -234,5 +276,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  reviewItem: {
+    marginBottom: 12,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  reviewDate: {
+    marginLeft: 8,
+    color: "#6B7280",
+  },
+  reviewComment: {
+    marginTop: 4,
+  },
+  emptyReview: {
+    textAlign: "center",
   },
 });
