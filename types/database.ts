@@ -200,6 +200,7 @@ export interface Database {
           title: string;
           description: string;
           goal_amount: number | null;
+          collected_amount: number | null;
           category: string;
           location: string;
           image_url: string | null;
@@ -213,6 +214,7 @@ export interface Database {
           title: string;
           description: string;
           goal_amount?: number | null;
+          collected_amount?: number | null;
           category: string;
           location: string;
           image_url?: string | null;
@@ -226,6 +228,7 @@ export interface Database {
           title?: string;
           description?: string;
           goal_amount?: number | null;
+          collected_amount?: number | null;
           category?: string;
           location?: string;
           image_url?: string | null;

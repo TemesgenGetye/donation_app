@@ -1,3 +1,4 @@
+import MoneySendingModal from "@/components/MoneySendingModal";
 import ReportModal from "@/components/ReportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -9,7 +10,6 @@ import {
   Filter,
   Flag,
   MapPin,
-  MessageCircle,
   Search,
 } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -41,11 +41,24 @@ export default function CampaignsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [reportModal, setReportModal] = useState({
+  const [reportModal, setReportModal] = useState<{
+    visible: boolean;
+    reportedId: string;
+    reportedName: string;
+    type: "user" | "donation" | "campaign" | "request";
+  }>({
     visible: false,
     reportedId: "",
     reportedName: "",
     type: "campaign",
+  });
+  const [moneyModal, setMoneyModal] = useState({
+    visible: false,
+    campaignId: "",
+    campaignTitle: "",
+    recipientName: "",
+    goalAmount: 0,
+    currentCollectedAmount: 0,
   });
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
     null
@@ -148,6 +161,25 @@ export default function CampaignsScreen() {
     });
   };
 
+  const handleSendMoney = (campaign: Campaign) => {
+    console.log("handleSendMoney called with campaign:", campaign);
+    setMoneyModal({
+      visible: true,
+      campaignId: campaign.id,
+      campaignTitle: campaign.title,
+      recipientName: campaign.profiles?.full_name || "",
+      goalAmount: campaign.goal_amount || 0,
+      currentCollectedAmount: campaign.collected_amount || 0,
+    });
+    console.log("Money modal state set to visible");
+  };
+
+  const handleMoneySent = () => {
+    // Refresh the campaigns list to show updated collected amounts
+    console.log("Money sent, refreshing campaigns...");
+    fetchCampaigns();
+  };
+
   const handleViewDetails = (campaign: Campaign) => {
     router.push({
       pathname: "/campaing-details",
@@ -204,7 +236,9 @@ export default function CampaignsScreen() {
         {item.goal_amount && (
           <View style={styles.goalContainer}>
             <DollarSign size={16} color="#10B981" />
-            <Text style={styles.goalText}>Goal: ${item.goal_amount}</Text>
+            <Text style={styles.goalText}>
+              ${item.collected_amount || 0} / ${item.goal_amount} raised
+            </Text>
           </View>
         )}
 
@@ -221,22 +255,21 @@ export default function CampaignsScreen() {
           </View>
         </View>
 
+        <Text style={styles.campaignOwner}>By {item.profiles?.full_name}</Text>
         <View style={styles.campaignInfo}>
-          <Text style={styles.campaignOwner}>
-            by {item.profiles?.full_name}
-          </Text>
           {profile?.role === "donor" && (
             <View style={styles.actionButtons}>
               <TouchableOpacity
-                style={styles.messageButton}
+                style={styles.sendMoneyButton}
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleMessageCampaign(item);
+                  handleSendMoney(item);
                 }}
               >
-                <MessageCircle size={16} color="#2563EB" />
-                <Text style={styles.messageButtonText}>Message</Text>
+                <DollarSign size={16} color="#ffffff" />
+                <Text style={styles.sendMoneyButtonText}>Send Money</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.reportButton}
                 onPress={(e) => {
@@ -344,6 +377,17 @@ export default function CampaignsScreen() {
         reportedId={reportModal.reportedId}
         reportedName={reportModal.reportedName}
         type={reportModal.type}
+      />
+
+      <MoneySendingModal
+        visible={moneyModal.visible}
+        onClose={() => setMoneyModal({ ...moneyModal, visible: false })}
+        campaignId={moneyModal.campaignId}
+        campaignTitle={moneyModal.campaignTitle}
+        recipientName={moneyModal.recipientName}
+        goalAmount={moneyModal.goalAmount}
+        currentCollectedAmount={moneyModal.currentCollectedAmount}
+        onMoneySent={handleMoneySent}
       />
     </SafeAreaView>
   );
@@ -613,5 +657,19 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  sendMoneyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#10B981",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  sendMoneyButtonText: {
+    fontSize: 12,
+    color: "#ffffff",
+    fontWeight: "500",
+    marginLeft: 4,
   },
 });

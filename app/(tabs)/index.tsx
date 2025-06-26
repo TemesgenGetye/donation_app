@@ -4,15 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
 import { useRouter } from "expo-router";
-import {
-  Clock,
-  Filter,
-  Flag,
-  MapPin,
-  MessageCircle,
-  Search,
-  Star,
-} from "lucide-react-native";
+import { Clock, Filter, Flag, MapPin, Search, Star } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -52,7 +44,12 @@ export default function HomeScreen() {
     donorName: "",
     donationId: "",
   });
-  const [reportModal, setReportModal] = useState({
+  const [reportModal, setReportModal] = useState<{
+    visible: boolean;
+    reportedId: string;
+    reportedName: string;
+    type: "user" | "donation" | "campaign" | "request";
+  }>({
     visible: false,
     reportedId: "",
     reportedName: "",
@@ -158,7 +155,6 @@ export default function HomeScreen() {
       donationId,
       donorId,
       donorName,
-      donationId: donationId,
     });
   };
 
@@ -257,6 +253,35 @@ export default function HomeScreen() {
               <Text style={styles.donorName}>
                 by {item.profiles?.full_name}
               </Text>
+              {item.ratings && item.ratings.length > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginLeft: 6,
+                  }}
+                >
+                  <Star size={14} color="#F59E0B" fill="#F59E0B" />
+                  <Text
+                    style={{
+                      marginLeft: 2,
+                      color: "#F59E0B",
+                      fontWeight: "bold",
+                      fontSize: 13,
+                    }}
+                  >
+                    {(
+                      item.ratings.reduce((sum, r) => sum + r.rating, 0) /
+                      item.ratings.length
+                    ).toFixed(1)}
+                  </Text>
+                  <Text
+                    style={{ marginLeft: 4, color: "#F59E0B", fontSize: 13 }}
+                  >
+                    ({item.ratings.length})
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={{
                   marginLeft: 6,
@@ -282,12 +307,15 @@ export default function HomeScreen() {
                   }}
                 >
                   Reviews
+                  {item.ratings &&
+                    item.ratings.length > 0 &&
+                    ` (${item.ratings.length})`}
                 </Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.actionButtons}>
-              {profile?.role === "recipient" && item.status === "available" && (
+              {/* {profile?.role === "recipient" && item.status === "available" && (
                 <TouchableOpacity
                   style={styles.requestButton}
                   onPress={(e) => {
@@ -298,7 +326,7 @@ export default function HomeScreen() {
                   <MessageCircle size={16} color="#2563EB" />
                   <Text style={styles.requestButtonText}>Request</Text>
                 </TouchableOpacity>
-              )}
+              )} */}
 
               {profile?.role === "recipient" && item.status === "completed" && (
                 <TouchableOpacity
@@ -313,7 +341,9 @@ export default function HomeScreen() {
                   }}
                 >
                   <Star size={16} color="#F59E0B" />
-                  <Text style={styles.reviewButtonText}>Review</Text>
+                  <Text style={styles.reviewButtonText}>
+                    Review // add total reviews in star rating
+                  </Text>
                 </TouchableOpacity>
               )}
 

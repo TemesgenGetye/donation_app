@@ -21,6 +21,12 @@ interface ReviewModalProps {
   donorName: string;
 }
 
+interface Review {
+  rating: number;
+  comment: string | null;
+  created_at: string;
+}
+
 export default function ReviewModal({
   visible,
   onClose,
@@ -32,7 +38,7 @@ export default function ReviewModal({
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
-  const [reviews, setReviews] = useState([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
     if (visible && donorId) {
@@ -54,13 +60,37 @@ export default function ReviewModal({
     setLoading(true);
 
     try {
-      const { error } = await supabase.from("ratings").insert({
-        donation_id: donationId,
-        recipient_id: recipientId,
-        donor_id: donorId,
-        rating,
-        comment: comment.trim() || null,
-      });
+      // First, check if a rating already exists for this donation and recipient
+      const { data: existingRating } = await supabase
+        .from("ratings")
+        .select("id")
+        .eq("donation_id", donationId)
+        .eq("recipient_id", recipientId)
+        .single();
+
+      let error;
+
+      if (existingRating) {
+        // Update existing rating
+        const { error: updateError } = await supabase
+          .from("ratings")
+          .update({
+            rating,
+            comment: comment.trim() || null,
+          })
+          .eq("id", existingRating.id);
+        error = updateError;
+      } else {
+        // Insert new rating
+        const { error: insertError } = await supabase.from("ratings").insert({
+          donation_id: donationId,
+          recipient_id: recipientId,
+          donor_id: donorId,
+          rating,
+          comment: comment.trim() || null,
+        });
+        error = insertError;
+      }
 
       if (error) throw error;
 
