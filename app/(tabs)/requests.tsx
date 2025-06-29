@@ -2,7 +2,9 @@ import ReportModal from "@/components/ReportModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
+import { useRouter } from "expo-router";
 import {
+  AlertCircle,
   Check,
   CheckCircle,
   Clock,
@@ -63,6 +65,7 @@ export default function RequestsScreen() {
     type: "request",
   });
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (profile?.id) {
@@ -422,6 +425,38 @@ export default function RequestsScreen() {
     }
   };
 
+  if (
+    profile?.role === "recipient" &&
+    profile.recipient_status !== "approved"
+  ) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>
+            {profile?.role === "donor" ? "Donation Requests" : "My Requests"}
+          </Text>
+        </View>
+        <View style={styles.approvalRequiredContainerCentered}>
+          <AlertCircle size={32} color="#EF4444" style={{ marginBottom: 12 }} />
+          <Text style={styles.approvalRequiredTitleCentered}>
+            Profile Approval Required
+          </Text>
+          <Text style={styles.approvalRequiredTextCentered}>
+            Please upload a verification image in your profile to get approved
+            and request donations.
+          </Text>
+          <TouchableOpacity
+            style={styles.approvalButtonCentered}
+            onPress={() => router.push("/profile")}
+          >
+            <User size={18} color="#ffffff" style={{ marginRight: 6 }} />
+            <Text style={styles.approvalButtonTextCentered}>Go to Profile</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // Show loading state while profile is being fetched
   if (!profile) {
     return (
@@ -723,6 +758,44 @@ const styles = StyleSheet.create({
   completionText: {
     fontSize: 14,
     color: "#10B981",
+    fontWeight: "600",
+  },
+  approvalRequiredContainerCentered: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    marginBottom: 20,
+    marginHorizontal: 0,
+  },
+  approvalRequiredTitleCentered: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  approvalRequiredTextCentered: {
+    fontSize: 15,
+    color: "#6B7280",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  approvalButtonCentered: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  approvalButtonTextCentered: {
+    fontSize: 15,
+    color: "#ffffff",
     fontWeight: "600",
   },
 });

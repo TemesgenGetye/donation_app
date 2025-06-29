@@ -1,11 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
-import { Eye, Flag, Star, Trash2 } from "lucide-react-native";
+import { Eye, Flag, Star, Trash2, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,9 +21,8 @@ export default function ReportsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
-  const [blockedUsers, setBlockedUsers] = useState<{ [id: string]: boolean }>(
-    {}
-  );
+  const [selectedReporter, setSelectedReporter] = useState<any>(null);
+  const [showReporterModal, setShowReporterModal] = useState(false);
 
   useEffect(() => {
     if (profile?.role !== "admin") {
@@ -32,6 +32,22 @@ export default function ReportsScreen() {
     fetchReports();
   }, [profile]);
 
+  useEffect(() => {
+    console.log("selectedReporter state changed:", selectedReporter);
+  }, [selectedReporter]);
+
+  useEffect(() => {
+    console.log("showReporterModal state changed:", showReporterModal);
+  }, [showReporterModal]);
+
+  useEffect(() => {
+    console.log("=== State Debug ===");
+    console.log("selectedReporter:", selectedReporter);
+    console.log("showReporterModal:", showReporterModal);
+    console.log("selectedReporter type:", typeof selectedReporter);
+    console.log("selectedReporter truthy:", !!selectedReporter);
+  }, [selectedReporter, showReporterModal]);
+
   const fetchReports = async () => {
     setLoading(true);
     try {
@@ -40,24 +56,13 @@ export default function ReportsScreen() {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
+
+      console.log("All reports data:", data);
+      console.log("Number of reports:", data?.length);
+
       setReports(data || []);
-      // Fetch blocked status for all reported users
-      const userIds = (data || [])
-        .filter((r) => r.type === "user")
-        .map((r) => r.reported_id);
-      if (userIds.length > 0) {
-        const { data: users, error: userError } = await supabase
-          .from("profiles")
-          .select("id, blocked")
-          .in("id", userIds);
-        if (!userError && users) {
-          const blockedMap: { [id: string]: boolean } = {};
-          users.forEach((u) => {
-            blockedMap[u.id] = u.blocked;
-          });
-          setBlockedUsers(blockedMap);
-        }
-      }
+      // Note: We can't fetch blocked status since 'blocked' field doesn't exist in profiles table
+      // We'll handle this differently or remove this functionality
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
@@ -94,18 +99,94 @@ export default function ReportsScreen() {
     }
   };
 
-  const handleBlockUser = async (userId: string) => {
+  const handleViewReporter = async (reporterId: string) => {
     try {
-      const { error } = await supabase
+      console.log("=== handleViewReporter called ===");
+      console.log("Fetching reporter details for ID:", reporterId);
+      console.log("Current user ID:", profile?.id);
+      console.log("Current user role:", profile?.role);
+
+      // First, let's check if we can read the reports table
+      const { data: reportData, error: reportError } = await supabase
+        .from("reports")
+        .select("*")
+        .eq("reporter_id", reporterId)
+        .limit(1);
+
+      console.log("Report data for this reporter:", reportData);
+      console.log("Report error:", reportError);
+
+      // Test admin access first
+      const { data: adminTest, error: adminError } = await supabase
         .from("profiles")
-        .update({ blocked: true })
-        .eq("id", userId);
-      if (error) throw error;
-      Alert.alert("Success", "User has been blocked.");
-      fetchReports();
+        .select("id, role")
+        .eq("id", profile?.id)
+        .single();
+
+      console.log("Admin test result:", { adminTest, adminError });
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", reporterId)
+        .single();
+
+      console.log("Profile fetch result:", { data, error });
+
+      if (error) {
+        console.error("Supabase error:", error);
+        console.error("Error code:", error.code);
+        console.error("Error message:", error.message);
+        console.error("Error details:", error.details);
+
+        // If it's a permission error, show a message about RLS
+        if (error.code === "PGRST116" || error.message.includes("permission")) {
+          Alert.alert(
+            "Permission Denied",
+            "Unable to fetch reporter details due to database permissions. This is likely due to Row Level Security (RLS) policies. Please contact your database administrator to add admin policies for profile access."
+          );
+          return;
+        }
+        throw error;
+      }
+
+      console.log("Reporter data fetched:", data);
+      console.log("About to set selectedReporter to:", data);
+
+      // Set the state immediately
+      setSelectedReporter(data);
+      setShowReporterModal(true);
+
+      console.log("State updates queued");
+
+      // Add a small delay to see if state updates are working
+      setTimeout(() => {
+        console.log("After timeout - selectedReporter:", selectedReporter);
+        console.log("After timeout - showReporterModal:", showReporterModal);
+      }, 100);
     } catch (error) {
-      console.error("Error blocking user:", error);
-      Alert.alert("Error", "Failed to block user");
+      console.error("Error fetching reporter details:", error);
+      Alert.alert("Error", "Failed to fetch reporter details");
+    }
+  };
+
+  const testProfileAccess = async () => {
+    try {
+      console.log("Testing profile access for current user:", profile?.id);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", profile?.id)
+        .single();
+
+      console.log("Own profile fetch result:", { data, error });
+      Alert.alert(
+        "Test Result",
+        error ? `Error: ${error.message}` : "Success: Can fetch own profile"
+      );
+    } catch (error) {
+      console.error("Test error:", error);
+      Alert.alert("Test Error", "Failed to test profile access");
     }
   };
 
@@ -120,20 +201,7 @@ export default function ReportsScreen() {
             <View style={styles.cardHeader}>
               <Flag size={18} color="#F59E0B" />
               <Text style={styles.cardTitle}>Type: {report.type}</Text>
-              <View>
-                <Text style={styles.cardSubtitle}>Reason: {report.reason}</Text>
-              </View>
-              {report.type === "user" && blockedUsers[report.reported_id] && (
-                <Text
-                  style={{
-                    color: "#EF4444",
-                    fontWeight: "bold",
-                    marginLeft: 8,
-                  }}
-                >
-                  Blocked
-                </Text>
-              )}
+              <Text style={styles.cardSubtitle}>Reason: {report.reason}</Text>
             </View>
             <Text style={styles.cardDescription}>{report.description}</Text>
             <View style={styles.cardActions}>
@@ -146,26 +214,11 @@ export default function ReportsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.approveButton]}
-                onPress={() =>
-                  Alert.alert("View", `Reported ID: ${report.reported_id}`)
-                }
+                onPress={() => handleViewReporter(report.reporter_id)}
               >
                 <Eye size={16} color="#fff" />
-                <Text style={styles.actionButtonText}>View</Text>
+                <Text style={styles.actionButtonText}>View Reporter</Text>
               </TouchableOpacity>
-              {report.type === "user" && (
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    styles.rejectButton,
-                    blockedUsers[report.reported_id] && { opacity: 0.5 },
-                  ]}
-                  onPress={() => handleBlockUser(report.reported_id)}
-                  disabled={blockedUsers[report.reported_id]}
-                >
-                  <Text style={styles.actionButtonText}>Block User</Text>
-                </TouchableOpacity>
-              )}
             </View>
           </View>
         ))
@@ -207,6 +260,84 @@ export default function ReportsScreen() {
           renderReports()
         )}
       </ScrollView>
+
+      {/* Reporter Details Modal */}
+      <Modal
+        visible={showReporterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowReporterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reporter Details</Text>
+              <TouchableOpacity
+                onPress={() => setShowReporterModal(false)}
+                style={styles.closeButton}
+              >
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flex: 1, minHeight: 200 }}>
+              <ScrollView
+                style={[styles.modalBody]}
+                contentContainerStyle={{ paddingBottom: 12, paddingTop: 8 }}
+              >
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Name:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReporter?.full_name || "Not provided"}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Email:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReporter?.email || "Not provided"}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Phone:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReporter?.phone || "Not provided"}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Role:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReporter?.role || "User"}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Status:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReporter?.recipient_status || "Active"}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Joined:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReporter?.created_at
+                      ? new Date(
+                          selectedReporter.created_at
+                        ).toLocaleDateString()
+                      : "-"}
+                  </Text>
+                </View>
+                {selectedReporter?.location && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Location:</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedReporter.location}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -310,9 +441,71 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 50,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    padding: 20,
+    borderRadius: 12,
+    width: "90%",
+    maxHeight: "90%",
+    minHeight: 300,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  closeButton: {
+    padding: 8,
+  },
+  modalBody: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingHorizontal: 8,
+    paddingVertical: 0,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 2,
+  },
+  detailLabel: {
+    fontWeight: "600",
+    color: "#1F2937",
+    marginRight: 2,
+    minWidth: 80,
+  },
+  detailValue: {
+    color: "#6B7280",
+    flex: 1,
+  },
 });
 
-export function RatingForm({ donationId, donorId, recipientId, onRated }) {
+export function RatingForm({
+  donationId,
+  donorId,
+  recipientId,
+  onRated,
+}: {
+  donationId: string;
+  donorId: string;
+  recipientId: string;
+  onRated?: () => void;
+}) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);

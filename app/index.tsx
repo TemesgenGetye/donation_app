@@ -1,35 +1,54 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
 
 export default function IndexScreen() {
-  const { session, loading, profile } = useAuth();
+  const { session, loading, profile, signOut } = useAuth();
   const router = useRouter();
+  const [blockedHandled, setBlockedHandled] = useState(false);
+  const alertShown = useRef(false);
+
+  console.log("blockedHandled", blockedHandled);
+  console.log("alertShown", alertShown.current);
 
   useEffect(() => {
-    console.log(
-      "Index screen - loading:",
-      loading,
-      "session:",
-      !!session,
-      "profile:",
-      !!profile
-    );
-
-    if (!loading) {
-      if (session && profile) {
-        console.log("Redirecting to tabs");
-        router.replace("/(tabs)");
-      } else if (session && !profile) {
-        console.log("Session exists but no profile, staying on loading");
-        // Stay on loading screen while profile is being fetched
-      } else {
-        console.log("Redirecting to login");
-        router.replace("/(auth)/login");
-      }
+    if (
+      !loading &&
+      profile?.blocked &&
+      !blockedHandled &&
+      !alertShown.current
+    ) {
+      alertShown.current = true;
+      setBlockedHandled(true);
+      Alert.alert(
+        "Blocked",
+        "Your account has been blocked. Please contact support for more information.",
+        [
+          {
+            text: "OK",
+            onPress: async () => {
+              await signOut();
+              router.replace("/(auth)/login");
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+      return;
     }
-  }, [session, loading, profile, router]);
+    if (!loading && profile?.blocked) {
+      // Blocked, do nothing else
+      return;
+    }
+    if (!loading && session && profile && !profile?.blocked) {
+      router.replace("/(tabs)");
+    } else if (!loading && session && !profile) {
+      // Stay on loading screen while profile is being fetched
+    } else if (!loading && !session) {
+      router.replace("/(auth)/login");
+    }
+  }, [session, loading, profile, router, signOut, blockedHandled]);
 
   return (
     <View style={styles.container}>
@@ -43,6 +62,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#F9FAFB",
   },
 });

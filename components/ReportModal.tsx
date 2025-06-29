@@ -63,6 +63,8 @@ export default function ReportModal({
       reason: selectedReason,
       description: description.trim() || null,
     });
+
+    console.log(error);
     setLoading(false);
     if (error) {
       Alert.alert("Error", "Failed to submit report.");

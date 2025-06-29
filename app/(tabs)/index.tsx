@@ -4,7 +4,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
 import { useRouter } from "expo-router";
-import { Clock, Filter, Flag, MapPin, Search, Star } from "lucide-react-native";
+import {
+  AlertCircle,
+  Clock,
+  Filter,
+  Flag,
+  MapPin,
+  Search,
+  Star,
+  User,
+} from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -423,28 +432,33 @@ export default function HomeScreen() {
         />
       </View>
 
-      <FlatList
-        data={filteredDonations}
-        renderItem={renderDonationCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#2563EB"]}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {profile?.role === "donor"
-                ? "No donations yet. Create your first donation!"
-                : "No donations available at the moment."}
+      {/* Approval message for unapproved recipients */}
+      {profile?.role === "recipient" &&
+        profile.recipient_status !== "approved" && (
+          <View style={styles.approvalRequiredContainerCentered}>
+            <AlertCircle
+              size={32}
+              color="#EF4444"
+              style={{ marginBottom: 12 }}
+            />
+            <Text style={styles.approvalRequiredTitleCentered}>
+              Profile Approval Required
             </Text>
+            <Text style={styles.approvalRequiredTextCentered}>
+              Please upload a verification image in your profile to get approved
+              and request donations.
+            </Text>
+            <TouchableOpacity
+              style={styles.approvalButtonCentered}
+              onPress={() => router.push("/profile")}
+            >
+              <User size={18} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.approvalButtonTextCentered}>
+                Go to Profile
+              </Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+        )}
 
       <ReviewModal
         visible={reviewModal.visible}
@@ -463,6 +477,32 @@ export default function HomeScreen() {
         reportedName={reportModal.reportedName}
         type={reportModal.type}
       />
+
+      {(profile?.role !== "recipient" ||
+        profile.recipient_status === "approved") && (
+        <FlatList
+          data={filteredDonations}
+          renderItem={renderDonationCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#2563EB"]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {profile?.role === "donor"
+                  ? "No donations yet. Create your first donation!"
+                  : "No donations available at the moment."}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -681,5 +721,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
     textAlign: "center",
+  },
+  approvalRequiredContainerCentered: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    marginBottom: 20,
+    marginHorizontal: 0,
+  },
+  approvalRequiredTitleCentered: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  approvalRequiredTextCentered: {
+    fontSize: 15,
+    color: "#6B7280",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  approvalButtonCentered: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  approvalButtonTextCentered: {
+    fontSize: 15,
+    color: "#ffffff",
+    fontWeight: "600",
   },
 });

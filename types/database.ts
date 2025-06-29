@@ -22,6 +22,7 @@ export interface Database {
           recipient_status: "unrequested" | "requested" | "approved";
           created_at: string;
           updated_at: string;
+          blocked?: boolean;
         };
         Insert: {
           id: string;
@@ -35,6 +36,7 @@ export interface Database {
           recipient_status?: "unrequested" | "requested" | "approved";
           created_at?: string;
           updated_at?: string;
+          blocked?: boolean;
         };
         Update: {
           id?: string;
@@ -48,6 +50,7 @@ export interface Database {
           recipient_status?: "unrequested" | "requested" | "approved";
           created_at?: string;
           updated_at?: string;
+          blocked?: boolean;
         };
       };
       donations: {

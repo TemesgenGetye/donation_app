@@ -4,7 +4,14 @@ import { decode as atob } from "base-64";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { Camera, DollarSign, MapPin, Upload } from "lucide-react-native";
+import {
+  AlertCircle,
+  Camera,
+  DollarSign,
+  MapPin,
+  Upload,
+  User,
+} from "lucide-react-native";
 import { useState } from "react";
 import {
   Alert,
@@ -354,20 +361,48 @@ export default function CreateScreen() {
   }
 
   // Show campaign form for recipients
+  if (
+    profile?.role === "recipient" &&
+    profile.recipient_status !== "approved"
+  ) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Create Campaign</Text>
+          <Text style={styles.subtitle}>Tell your story and ask for help</Text>
+        </View>
+        <View style={styles.approvalRequiredContainerCentered}>
+          <AlertCircle size={32} color="#EF4444" style={{ marginBottom: 12 }} />
+          <Text style={styles.approvalRequiredTitleCentered}>
+            Profile Approval Required
+          </Text>
+          <Text style={styles.approvalRequiredTextCentered}>
+            Please upload a verification image in your profile to get approved
+            and create campaigns.
+          </Text>
+          <TouchableOpacity
+            style={styles.approvalButtonCentered}
+            onPress={() => router.push("/profile")}
+          >
+            <User size={18} color="#ffffff" style={{ marginRight: 6 }} />
+            <Text style={styles.approvalButtonTextCentered}>Go to Profile</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Create Campaign</Text>
+        <Text style={styles.subtitle}>Tell your story and ask for help</Text>
+      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Create Campaign</Text>
-            <Text style={styles.subtitle}>
-              Tell your story and ask for help
-            </Text>
-          </View>
-
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Campaign Title *</Text>
@@ -621,6 +656,44 @@ const styles = StyleSheet.create({
   createButtonText: {
     color: "#ffffff",
     fontSize: 16,
+    fontWeight: "600",
+  },
+  approvalRequiredContainerCentered: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    marginBottom: 20,
+    marginHorizontal: 0,
+  },
+  approvalRequiredTitleCentered: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  approvalRequiredTextCentered: {
+    fontSize: 15,
+    color: "#6B7280",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  approvalButtonCentered: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  approvalButtonTextCentered: {
+    fontSize: 15,
+    color: "#ffffff",
     fontWeight: "600",
   },
 });

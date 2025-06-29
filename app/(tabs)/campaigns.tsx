@@ -5,12 +5,14 @@ import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
 import { useRouter } from "expo-router";
 import {
+  AlertCircle,
   Clock,
   DollarSign,
   Filter,
   Flag,
   MapPin,
   Search,
+  User,
 } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
@@ -96,7 +98,11 @@ export default function CampaignsScreen() {
         .order("created_at", { ascending: false });
 
       if (profile?.role === "recipient") {
-        query = query.eq("recipient_id", profile.id);
+        if (profile.recipient_status === "approved") {
+          query = query.eq("recipient_id", profile.id);
+        } else {
+          query = query.eq("status", "active");
+        }
       } else {
         query = query.eq("status", "active");
       }
@@ -304,9 +310,13 @@ export default function CampaignsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>
-          {profile?.role === "recipient" ? "My Campaigns" : "Active Campaigns"}
+          {profile?.role === "recipient" &&
+          profile.recipient_status === "approved"
+            ? "My Campaigns"
+            : "Active Campaigns"}
         </Text>
 
+        {/* Search bar and selectors always visible */}
         <View style={styles.searchContainer}>
           <Search size={20} color="#6B7280" />
           <TextInput
@@ -319,7 +329,6 @@ export default function CampaignsScreen() {
             <Filter size={20} color="#6B7280" />
           </TouchableOpacity>
         </View>
-
         <FlatList
           horizontal
           data={categories}
@@ -347,28 +356,62 @@ export default function CampaignsScreen() {
         />
       </View>
 
-      <FlatList
-        data={filteredCampaigns}
-        renderItem={renderCampaignCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#2563EB"]}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {profile?.role === "recipient"
-                ? "No campaigns yet. Create your first campaign!"
-                : "No active campaigns at the moment."}
+      {/* Approval message for unapproved recipients */}
+      {profile?.role === "recipient" &&
+        profile.recipient_status !== "approved" && (
+          <View style={styles.approvalRequiredContainerCentered}>
+            <AlertCircle
+              size={32}
+              color="#EF4444"
+              style={{ marginBottom: 12 }}
+            />
+            <Text style={styles.approvalRequiredTitleCentered}>
+              Profile Approval Required
             </Text>
+            <Text style={styles.approvalRequiredTextCentered}>
+              Please upload a verification image in your profile to get approved
+              and create campaigns.
+            </Text>
+            <TouchableOpacity
+              style={styles.approvalButtonCentered}
+              onPress={() => router.push("/profile")}
+            >
+              <User size={18} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.approvalButtonTextCentered}>
+                Go to Profile
+              </Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+        )}
+
+      {/* Only show campaign list and empty state if recipient is approved or not a recipient */}
+      {(!profile ||
+        profile.role !== "recipient" ||
+        profile.recipient_status === "approved") && (
+        <FlatList
+          data={filteredCampaigns}
+          renderItem={renderCampaignCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#2563EB"]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {profile?.role === "recipient" &&
+                profile.recipient_status === "approved"
+                  ? "No campaigns yet. Create your first campaign!"
+                  : "No active campaigns at the moment."}
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       <ReportModal
         visible={reportModal.visible}
@@ -671,5 +714,89 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "500",
     marginLeft: 4,
+  },
+  approvalRequiredContainer: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    marginHorizontal: 4,
+  },
+  approvalContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  approvalIcon: {
+    marginRight: 0,
+  },
+  approvalTextContainer: {
+    flex: 1,
+    marginRight: 8,
+  },
+  approvalRequiredTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  approvalRequiredText: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  approvalButton: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  approvalButtonText: {
+    fontSize: 14,
+    color: "#ffffff",
+    fontWeight: "600",
+  },
+  approvalRequiredContainerCentered: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    marginBottom: 20,
+    marginHorizontal: 0,
+  },
+  approvalRequiredTitleCentered: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  approvalRequiredTextCentered: {
+    fontSize: 15,
+    color: "#6B7280",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  approvalButtonCentered: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  approvalButtonTextCentered: {
+    fontSize: 15,
+    color: "#ffffff",
+    fontWeight: "600",
   },
 });

@@ -303,9 +303,9 @@ export default function CampaignDetailsScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
       >
         <ScrollView
           style={styles.content}
@@ -381,85 +381,225 @@ export default function CampaignDetailsScreen() {
               )}
             </View>
           </View>
-        </ScrollView>
 
-        {/* Chat Toggle Button */}
-        <TouchableOpacity
-          style={styles.chatToggleButton}
-          onPress={toggleChat}
-          activeOpacity={0.8}
-        >
-          <View style={styles.chatToggleContent}>
-            <MessageCircle size={20} color="#3B82F6" />
-            <Text style={styles.chatToggleText}>
-              {isRecipient ? "Conversations" : "Chat"}
-            </Text>
-            <View style={styles.chatToggleBadge}>
-              {isRecipient && conversations.length > 0 && (
-                <Text style={styles.chatToggleBadgeText}>
-                  {conversations.length}
-                </Text>
-              )}
-              {!isRecipient && messages.length > 0 && (
-                <Text style={styles.chatToggleBadgeText}>
-                  {messages.length}
-                </Text>
-              )}
+          {/* Chat Toggle Button */}
+          <TouchableOpacity
+            style={styles.chatToggleButton}
+            onPress={toggleChat}
+            activeOpacity={0.8}
+          >
+            <View style={styles.chatToggleContent}>
+              <MessageCircle size={20} color="#3B82F6" />
+              <Text style={styles.chatToggleText}>
+                {isRecipient ? "Conversations" : "Chat"}
+              </Text>
+              <View style={styles.chatToggleBadge}>
+                {isRecipient && conversations.length > 0 && (
+                  <Text style={styles.chatToggleBadgeText}>
+                    {conversations.length}
+                  </Text>
+                )}
+                {!isRecipient && messages.length > 0 && (
+                  <Text style={styles.chatToggleBadgeText}>
+                    {messages.length}
+                  </Text>
+                )}
+              </View>
             </View>
-          </View>
-          {chatVisible ? (
-            <ChevronDown size={20} color="#64748B" />
-          ) : (
-            <ChevronUp size={20} color="#64748B" />
-          )}
-        </TouchableOpacity>
+            {chatVisible ? (
+              <ChevronDown size={20} color="#64748B" />
+            ) : (
+              <ChevronUp size={20} color="#64748B" />
+            )}
+          </TouchableOpacity>
 
-        {/* Collapsible Chat Section */}
-        <Animated.View
-          style={[
-            styles.chatContainer,
-            {
-              height: chatAnimation.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, Math.max(600, 400 + keyboardHeight)], // Adjust height based on keyboard
-              }),
-              opacity: chatAnimation,
-            },
-          ]}
-        >
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563EB" />
-            </View>
-          )}
-          {isRecipient ? (
-            selectedDonor ? (
-              // Chat view
+          {/* Collapsible Chat Section */}
+          <Animated.View
+            style={[
+              styles.chatContainer,
+              {
+                height: chatAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, Math.max(600, 400 + keyboardHeight)], // Adjust height based on keyboard
+                }),
+                opacity: chatAnimation,
+              },
+            ]}
+          >
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2563EB" />
+              </View>
+            )}
+            {isRecipient ? (
+              selectedDonor ? (
+                // Chat view
+                <>
+                  <View style={styles.chatHeader}>
+                    <TouchableOpacity
+                      onPress={() => setSelectedDonor(null)}
+                      style={styles.backToConversations}
+                    >
+                      <ArrowLeft size={20} color="#1F2937" />
+                      <Text style={styles.backText}>Back</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.chatHeaderName}>
+                      {selectedDonor.full_name}
+                    </Text>
+                    <View style={{ width: 60 }} />
+                  </View>
+                  <ScrollView
+                    style={styles.messagesContainer}
+                    contentContainerStyle={{ flexDirection: "column-reverse" }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {messages.length === 0 ? (
+                      <View style={styles.emptyChatContainer}>
+                        <Text style={styles.emptyChatEmoji}>💬</Text>
+                        <Text style={styles.emptyChatText}>
+                          No messages yet
+                        </Text>
+                        <Text style={styles.emptyChatSubtext}>
+                          Start a conversation!
+                        </Text>
+                      </View>
+                    ) : (
+                      messages.map((msg) => (
+                        <View
+                          key={msg.id}
+                          style={[
+                            styles.messageBubble,
+                            msg.sender_id === profile?.id
+                              ? styles.myMessage
+                              : styles.theirMessage,
+                          ]}
+                        >
+                          <Text
+                            style={
+                              msg.sender_id === profile?.id
+                                ? styles.myMessageText
+                                : styles.theirMessageText
+                            }
+                          >
+                            {msg.content}
+                          </Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={messageText}
+                      onChangeText={setMessageText}
+                      placeholder="Type your message..."
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.sendButton,
+                        !messageText.trim() && styles.sendButtonDisabled,
+                      ]}
+                      onPress={handleSendMessage}
+                      disabled={!messageText.trim()}
+                    >
+                      <Send
+                        size={20}
+                        color={messageText.trim() ? "#FFFFFF" : "#9CA3AF"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                // Conversations list
+                <View style={styles.conversationsContainer}>
+                  <View style={styles.conversationsHeader}>
+                    <MessageCircle size={20} color="#2563EB" />
+                    <Text style={styles.conversationsTitle}>Conversations</Text>
+                  </View>
+                  {conversations.length === 0 ? (
+                    <View style={styles.emptyConversationsContainer}>
+                      <Text style={styles.emptyConversationsEmoji}>🤝</Text>
+                      <Text style={styles.emptyConversationsText}>
+                        No conversations yet
+                      </Text>
+                      <Text style={styles.emptyConversationsSubtext}>
+                        Donors will appear here when they message you
+                      </Text>
+                    </View>
+                  ) : (
+                    <ScrollView
+                      style={styles.conversationsList}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {conversations.map(({ donor, lastMessage }) => (
+                        <TouchableOpacity
+                          key={donor.id}
+                          style={styles.conversationCard}
+                          onPress={() => {
+                            // When opening a convo, remove it from unread
+                            setUnreadConversations((prev) => {
+                              const newSet = new Set(prev);
+                              newSet.delete(donor.id);
+                              return newSet;
+                            });
+                            setSelectedDonor(donor);
+                          }}
+                        >
+                          <View style={styles.conversationAvatar}>
+                            <User size={16} color="#2563EB" />
+                          </View>
+                          <View style={styles.conversationContent}>
+                            <View style={styles.conversationHeader}>
+                              <Text style={styles.senderName}>
+                                {donor.full_name}
+                              </Text>
+                              <Text style={styles.messageDate}>
+                                {new Date(
+                                  lastMessage.created_at
+                                ).toLocaleDateString()}
+                              </Text>
+                            </View>
+                            <Text
+                              style={styles.messageContent}
+                              numberOfLines={1}
+                            >
+                              {lastMessage.content}
+                            </Text>
+                          </View>
+                          {unreadConversations.has(donor.id) && (
+                            <View style={styles.unreadDot} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              )
+            ) : (
               <>
                 <View style={styles.chatHeader}>
-                  <TouchableOpacity
-                    onPress={() => setSelectedDonor(null)}
-                    style={styles.backToConversations}
-                  >
-                    <ArrowLeft size={20} color="#1F2937" />
-                    <Text style={styles.backText}>Back</Text>
-                  </TouchableOpacity>
+                  <MessageCircle size={20} color="#2563EB" />
                   <Text style={styles.chatHeaderName}>
-                    {selectedDonor.full_name}
+                    Chat with {params.recipientName}
                   </Text>
-                  <View style={{ width: 60 }} />
                 </View>
                 <ScrollView
                   style={styles.messagesContainer}
                   contentContainerStyle={{ flexDirection: "column-reverse" }}
                   showsVerticalScrollIndicator={false}
                 >
+                  {loading && (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color="#2563EB" />
+                    </View>
+                  )}
                   {messages.length === 0 ? (
                     <View style={styles.emptyChatContainer}>
                       <Text style={styles.emptyChatEmoji}>💬</Text>
                       <Text style={styles.emptyChatText}>No messages yet</Text>
                       <Text style={styles.emptyChatSubtext}>
-                        Start a conversation!
+                        Start a conversation with the recipient!
                       </Text>
                     </View>
                   ) : (
@@ -509,144 +649,9 @@ export default function CampaignDetailsScreen() {
                   </TouchableOpacity>
                 </View>
               </>
-            ) : (
-              // Conversations list
-              <View style={styles.conversationsContainer}>
-                <View style={styles.conversationsHeader}>
-                  <MessageCircle size={20} color="#2563EB" />
-                  <Text style={styles.conversationsTitle}>Conversations</Text>
-                </View>
-                {conversations.length === 0 ? (
-                  <View style={styles.emptyConversationsContainer}>
-                    <Text style={styles.emptyConversationsEmoji}>🤝</Text>
-                    <Text style={styles.emptyConversationsText}>
-                      No conversations yet
-                    </Text>
-                    <Text style={styles.emptyConversationsSubtext}>
-                      Donors will appear here when they message you
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView
-                    style={styles.conversationsList}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {conversations.map(({ donor, lastMessage }) => (
-                      <TouchableOpacity
-                        key={donor.id}
-                        style={styles.conversationCard}
-                        onPress={() => {
-                          // When opening a convo, remove it from unread
-                          setUnreadConversations((prev) => {
-                            const newSet = new Set(prev);
-                            newSet.delete(donor.id);
-                            return newSet;
-                          });
-                          setSelectedDonor(donor);
-                        }}
-                      >
-                        <View style={styles.conversationAvatar}>
-                          <User size={16} color="#2563EB" />
-                        </View>
-                        <View style={styles.conversationContent}>
-                          <View style={styles.conversationHeader}>
-                            <Text style={styles.senderName}>
-                              {donor.full_name}
-                            </Text>
-                            <Text style={styles.messageDate}>
-                              {new Date(
-                                lastMessage.created_at
-                              ).toLocaleDateString()}
-                            </Text>
-                          </View>
-                          <Text style={styles.messageContent} numberOfLines={1}>
-                            {lastMessage.content}
-                          </Text>
-                        </View>
-                        {unreadConversations.has(donor.id) && (
-                          <View style={styles.unreadDot} />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-              </View>
-            )
-          ) : (
-            <>
-              <View style={styles.chatHeader}>
-                <MessageCircle size={20} color="#2563EB" />
-                <Text style={styles.chatHeaderName}>
-                  Chat with {params.recipientName}
-                </Text>
-              </View>
-              <ScrollView
-                style={styles.messagesContainer}
-                contentContainerStyle={{ flexDirection: "column-reverse" }}
-                showsVerticalScrollIndicator={false}
-              >
-                {loading && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#2563EB" />
-                  </View>
-                )}
-                {messages.length === 0 ? (
-                  <View style={styles.emptyChatContainer}>
-                    <Text style={styles.emptyChatEmoji}>💬</Text>
-                    <Text style={styles.emptyChatText}>No messages yet</Text>
-                    <Text style={styles.emptyChatSubtext}>
-                      Start a conversation with the recipient!
-                    </Text>
-                  </View>
-                ) : (
-                  messages.map((msg) => (
-                    <View
-                      key={msg.id}
-                      style={[
-                        styles.messageBubble,
-                        msg.sender_id === profile?.id
-                          ? styles.myMessage
-                          : styles.theirMessage,
-                      ]}
-                    >
-                      <Text
-                        style={
-                          msg.sender_id === profile?.id
-                            ? styles.myMessageText
-                            : styles.theirMessageText
-                        }
-                      >
-                        {msg.content}
-                      </Text>
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.textInput}
-                  value={messageText}
-                  onChangeText={setMessageText}
-                  placeholder="Type your message..."
-                  placeholderTextColor="#9CA3AF"
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.sendButton,
-                    !messageText.trim() && styles.sendButtonDisabled,
-                  ]}
-                  onPress={handleSendMessage}
-                  disabled={!messageText.trim()}
-                >
-                  <Send
-                    size={20}
-                    color={messageText.trim() ? "#FFFFFF" : "#9CA3AF"}
-                  />
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-        </Animated.View>
+            )}
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       <ReportModal

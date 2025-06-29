@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import {
   Flag,
   HeartIcon,
@@ -9,11 +9,53 @@ import {
   Shield,
   User,
 } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, View } from "react-native";
 
 export default function TabLayout() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
+  const router = useRouter();
   const isDonor = profile?.role === "donor";
   const isAdmin = profile?.role === "admin";
+  const [blockedHandled, setBlockedHandled] = useState(false);
+  const alertShown = useRef(false);
+
+  useEffect(() => {
+    if (profile?.blocked && !blockedHandled && !alertShown.current) {
+      alertShown.current = true;
+      setBlockedHandled(true);
+      Alert.alert(
+        "Blocked",
+        "Your account has been blocked. Please contact support for more information.",
+        [
+          {
+            text: "OK",
+            onPress: async () => {
+              await signOut();
+              router.replace("/(auth)/login");
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    }
+  }, [profile, signOut, router, blockedHandled]);
+
+  if (profile?.blocked) {
+    // Show nothing while blocked (or you can show a spinner)
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#F9FAFB",
+        }}
+      >
+        <ActivityIndicator size="large" color="#2563EB" />
+      </View>
+    );
+  }
 
   console.log("Current user role:", profile?.role, "isAdmin:", isAdmin);
 
@@ -54,6 +96,14 @@ export default function TabLayout() {
           options={{
             title: "Reports",
             tabBarIcon: ({ size, color }) => <Flag size={size} color={color} />,
+          }}
+        />
+
+        <Tabs.Screen
+          name="users"
+          options={{
+            title: "Users",
+            tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
           }}
         />
         {/* Hide all other screens for admin */}
@@ -169,6 +219,13 @@ export default function TabLayout() {
         name="reports"
         options={{
           href: null, // Hide reports tab for non-admins
+        }}
+      />
+
+      <Tabs.Screen
+        name="users"
+        options={{
+          href: null, // This hides the tab
         }}
       />
     </Tabs>

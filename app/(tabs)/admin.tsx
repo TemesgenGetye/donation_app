@@ -270,6 +270,8 @@ export default function AdminScreen() {
     </View>
   );
 
+  console.log("campaigns", campaigns);
+
   const renderCampaigns = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Pending Campaigns</Text>
@@ -278,6 +280,11 @@ export default function AdminScreen() {
       ) : (
         campaigns.map((campaign) => (
           <View key={campaign.id} style={styles.card}>
+            {/* image */}
+            <Image
+              source={{ uri: campaign.image_url }}
+              style={{ width: "100%", height: 200, borderRadius: 8 }}
+            />
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{campaign.title}</Text>
               <Text style={styles.cardSubtitle}>
@@ -324,6 +331,10 @@ export default function AdminScreen() {
       ) : (
         donations.map((donation) => (
           <View key={donation.id} style={styles.card}>
+            <Image
+              source={{ uri: donation.image_url }}
+              style={{ width: "100%", height: 200, borderRadius: 8 }}
+            />
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{donation.title}</Text>
               <Text style={styles.cardSubtitle}>
@@ -421,8 +432,9 @@ export default function AdminScreen() {
           style={styles.logoutButton}
           onPress={async () => {
             await signOut();
-            console.log("Signed out, redirecting to login...");
-            router.replace("/(auth)/login");
+            setTimeout(() => {
+              router.replace("/(auth)/login");
+            }, 100);
           }}
         >
           <LogOut size={22} color="#EF4444" />
