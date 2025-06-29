@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DonationExpo",
+    "name": "DonationApp",
     "slug": "DonationExpo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,7 +17,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.temesgengetye.DonationExpo"
+      "package": "com.temesgengetye.DonationApp"
     },
     "web": {
       "bundler": "metro",
@@ -34,7 +34,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
