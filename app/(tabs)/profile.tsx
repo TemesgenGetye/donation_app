@@ -32,7 +32,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileScreen() {
-  const { profile, signOut, updateProfile } = useAuth();
+  const { profile, signOut, updateProfile, loading } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -41,6 +41,17 @@ export default function ProfileScreen() {
     phone: profile?.phone || "",
     location: profile?.location || "",
   });
+
+  // Update editedProfile when profile changes (for real-time updates)
+  React.useEffect(() => {
+    if (profile && !editing) {
+      setEditedProfile({
+        full_name: profile.full_name || "",
+        phone: profile.phone || "",
+        location: profile.location || "",
+      });
+    }
+  }, [profile, editing]);
 
   const handleSave = async () => {
     const { error } = await updateProfile(editedProfile);
@@ -177,6 +188,17 @@ export default function ProfileScreen() {
         return "Not Requested";
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -348,7 +370,7 @@ export default function ProfileScreen() {
               <View style={styles.pendingContainer}>
                 <Text style={styles.pendingText}>
                   Your verification request is being reviewed by our admin team.
-                  You'll be notified once approved.
+                  You&apos;ll be notified once approved.
                 </Text>
               </View>
             )}
@@ -389,6 +411,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F9FAFB",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   header: {
     backgroundColor: "#ffffff",

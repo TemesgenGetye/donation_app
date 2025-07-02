@@ -10,7 +10,7 @@ import {
   User,
 } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, View } from "react-native";
 
 export default function TabLayout() {
   const { profile, signOut } = useAuth();
@@ -25,9 +25,27 @@ export default function TabLayout() {
       alertShown.current = true;
       setBlockedHandled(true);
       Alert.alert(
-        "Blocked",
+        "🚫 Account Blocked",
         "Your account has been blocked. Please contact support for more information.",
         [
+          {
+            text: "📞 Call Support (8181)",
+            onPress: async () => {
+              // Open phone dialer with the number
+              const phoneNumber = "8181";
+              const url = `tel:${phoneNumber}`;
+              try {
+                const supported = await Linking.canOpenURL(url);
+                if (supported) {
+                  await Linking.openURL(url);
+                } else {
+                  console.log("Phone dialer not supported");
+                }
+              } catch (error) {
+                console.error("Error opening phone dialer:", error);
+              }
+            },
+          },
           {
             text: "OK",
             onPress: async () => {

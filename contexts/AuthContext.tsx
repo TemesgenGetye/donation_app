@@ -66,6 +66,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Set up realtime subscription for profile changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log("Setting up realtime subscription for user:", user.id);
+
+    // Subscribe to changes in the profiles table for the current user
+    const channel = supabase
+      .channel(`profile-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log("Profile realtime update:", payload);
+
+          if (payload.eventType === "UPDATE") {
+            console.log("🔄 Updating profile with new data:", payload.new);
+            setProfile(payload.new as Profile);
+          } else if (payload.eventType === "INSERT") {
+            console.log("➕ Inserting new profile:", payload.new);
+            setProfile(payload.new as Profile);
+          } else if (payload.eventType === "DELETE") {
+            console.log("🗑️ Deleting profile");
+            setProfile(null);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+        if (status === "SUBSCRIBED") {
+          console.log("✅ Realtime subscription active for user:", user.id);
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("❌ Realtime subscription error for user:", user.id);
+        }
+      });
+
+    return () => {
+      console.log("Cleaning up realtime subscription for user:", user.id);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const fetchProfile = async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId);
