@@ -60,7 +60,7 @@ export default function LoginScreen() {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Email</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: "#1F2937" }]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="Enter your email"
@@ -74,7 +74,7 @@ export default function LoginScreen() {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: "#1F2937" }]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Enter your password"
@@ -95,7 +95,9 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>
+                Don&apos;t have an account?{" "}
+              </Text>
               <Link href="/(auth)/register" asChild>
                 <TouchableOpacity>
                   <Text style={styles.linkText}>Sign Up</Text>
@@ -166,6 +168,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: "#F9FAFB",
+    color: "#1F2937",
   },
   button: {
     backgroundColor: "#2563EB",

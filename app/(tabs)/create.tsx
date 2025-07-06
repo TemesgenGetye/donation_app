@@ -262,6 +262,7 @@ export default function CreateScreen() {
                   value={donationTitle}
                   onChangeText={setDonationTitle}
                   placeholder="What are you donating?"
+                  placeholderTextColor="#6B7280"
                 />
               </View>
 
@@ -275,6 +276,7 @@ export default function CreateScreen() {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  placeholderTextColor="#6B7280"
                 />
               </View>
 
@@ -316,6 +318,7 @@ export default function CreateScreen() {
                     value={donationLocation}
                     onChangeText={setDonationLocation}
                     placeholder="Enter pickup location"
+                    placeholderTextColor="#6B7280"
                   />
                 </View>
               </View>
@@ -407,23 +410,25 @@ export default function CreateScreen() {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Campaign Title *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: "#1F2937" }]}
                 value={campaignTitle}
                 onChangeText={setCampaignTitle}
                 placeholder="What do you need help with?"
+                placeholderTextColor="#6B7280"
               />
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Description *</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, { color: "#1F2937" }]}
                 value={campaignDescription}
                 onChangeText={setCampaignDescription}
                 placeholder="Tell your story and explain why you need help..."
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
+                placeholderTextColor="#6B7280"
               />
             </View>
 
@@ -460,11 +465,12 @@ export default function CreateScreen() {
               <View style={styles.locationInputContainer}>
                 <DollarSign size={20} color="#6B7280" />
                 <TextInput
-                  style={styles.locationInput}
+                  style={[styles.locationInput, { color: "#1F2937" }]}
                   value={campaignGoal}
                   onChangeText={setCampaignGoal}
                   placeholder="Enter target amount"
                   keyboardType="numeric"
+                  placeholderTextColor="#6B7280"
                 />
               </View>
             </View>
@@ -474,10 +480,11 @@ export default function CreateScreen() {
               <View style={styles.locationInputContainer}>
                 <MapPin size={20} color="#6B7280" />
                 <TextInput
-                  style={styles.locationInput}
+                  style={[styles.locationInput, { color: "#1F2937" }]}
                   value={campaignLocation}
                   onChangeText={setCampaignLocation}
                   placeholder="Enter your location"
+                  placeholderTextColor="#6B7280"
                 />
               </View>
             </View>
@@ -571,6 +578,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: "#ffffff",
+    color: "#1F2937",
   },
   textArea: {
     height: 120,

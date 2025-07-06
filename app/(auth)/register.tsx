@@ -1,19 +1,19 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { Link, useRouter } from "expo-router";
+import { HandHeart, Heart, User } from "lucide-react-native";
 import { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Link, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/contexts/AuthContext";
-import { Heart, User, HandHeart } from "lucide-react-native";
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
@@ -95,7 +95,7 @@ export default function RegisterScreen() {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: "#1F2937" }]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Enter your password"
@@ -234,6 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: "#F9FAFB",
+    color: "#1F2937",
   },
   roleContainer: {
     flexDirection: "row",
