@@ -143,14 +143,15 @@ export default function TabLayout() {
             href: null, // This hides the tab
           }}
         />
+
         <Tabs.Screen
-          name="campaigns"
+          name="profile"
           options={{
             href: null, // This hides the tab
           }}
         />
         <Tabs.Screen
-          name="profile"
+          name="campaigns"
           options={{
             href: null, // This hides the tab
           }}
