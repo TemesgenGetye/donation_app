@@ -15,9 +15,6 @@ export default function IndexScreen() {
   const [blockedHandled, setBlockedHandled] = useState(false);
   const alertShown = useRef(false);
 
-  console.log("blockedHandled", blockedHandled);
-  console.log("alertShown", alertShown.current);
-
   useEffect(() => {
     if (
       !loading &&

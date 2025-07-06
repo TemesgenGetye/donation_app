@@ -287,8 +287,8 @@ export default function CampaignDetailsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar
-        backgroundColor="#6B7280"
-        barStyle="light-content"
+        backgroundColor="#ffffff"
+        barStyle="dark-content"
         translucent={false}
       />
       <View style={styles.header}>

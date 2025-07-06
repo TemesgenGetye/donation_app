@@ -395,8 +395,9 @@ export default function HomeScreen() {
         <View style={styles.searchContainer}>
           <Search size={20} color="#6B7280" />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: "#1F2937" }]}
             placeholder="Search donations..."
+            placeholderTextColor="#6B7280"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />

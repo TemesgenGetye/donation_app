@@ -3,6 +3,7 @@ import ReviewModal from "@/components/ReviewModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import {
   ArrowLeft,
   Clock,
@@ -174,6 +175,7 @@ export default function DonationDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor="#ffffff" style="dark" translucent={false} />
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}

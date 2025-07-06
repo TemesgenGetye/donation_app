@@ -320,7 +320,8 @@ export default function CampaignsScreen() {
         <View style={styles.searchContainer}>
           <Search size={20} color="#6B7280" />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: "#1F2937" }]}
+            placeholderTextColor="#6B7280"
             placeholder="Search campaigns..."
             value={searchQuery}
             onChangeText={setSearchQuery}

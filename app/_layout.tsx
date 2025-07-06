@@ -13,7 +13,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
-      <StatusBar backgroundColor="#6B7280" style="dark" />
+      <StatusBar backgroundColor="#ffffff" style="dark" />
     </AuthProvider>
   );
 }
