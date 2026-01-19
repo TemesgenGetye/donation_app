@@ -1,0 +1,2411 @@
+openapi: 3.0.3
+info:
+  title: Donation Platform API - Unified Documentation
+  description: |
+    Complete API documentation for the Donation Platform microservices architecture.
+    
+    This platform consists of two independent microservices:
+    
+    ## Donation Service (Port 3001)
+    Manages donation listings and lifecycle:
+    - Creating new donation listings
+    - Retrieving donations with filtering
+    - Updating donation status and details
+    - Deleting donations
+    - Publishing events via RabbitMQ
+    
+    **Events Published:**
+    - `donation.created` - When a donation is created
+    - `donation.status.changed` - When donation status changes
+    - `donation.claimed` - When a donation is claimed
+    - `donation.deleted` - When a donation is deleted
+    
+    ## Campaign Service (Port 3002)
+    Manages fundraising campaigns:
+    - Creating new fundraising campaigns
+    - Retrieving campaigns with filtering
+    - Updating campaign details and status
+    - Contributing money to campaigns
+    - Deleting campaigns
+    - Publishing events via RabbitMQ
+    
+    **Events Published:**
+    - `campaign.created` - When a campaign is created
+    - `campaign.status.changed` - When campaign status changes
+    - `campaign.contributed` - When someone contributes to a campaign
+    - `campaign.completed` - When campaign goal is reached
+    - `campaign.deleted` - When a campaign is deleted
+    
+    ## Supabase REST API
+    Direct database operations via Supabase REST API:
+    - **Messages**: Real-time messaging between users
+    - **Requests**: Donation requests from recipients
+    - **Ratings**: User ratings and reviews
+    - **Profiles**: User profile management
+    - **Reports**: Content reporting system
+    - **Storage**: File uploads (images, verification documents)
+    
+    ## Architecture
+    - **Microservices**: Independent services communicating via RabbitMQ
+    - **Database**: Supabase (PostgreSQL) with REST API
+    - **Storage**: Supabase Storage for file management
+    - **Messaging**: RabbitMQ for event-driven architecture
+    - **Documentation**: OpenAPI 3.0.3
+  version: 1.0.0
+  contact:
+    name: Donation Platform Team
+    email: support@donation-platform.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3001
+    description: Donation Service (Local)
+  - url: http://localhost:3002
+    description: Campaign Service (Local)
+  - url: https://{supabase-project-id}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      supabase-project-id:
+        default: lthnayjfieviorabxxof
+        description: Your Supabase project ID
+  - url: https://api.donation-platform.com
+    description: Production API Gateway
+
+tags:
+  - name: Donations
+    description: Donation management operations (Donation Service - Port 3001)
+  - name: Campaigns
+    description: Campaign management operations (Campaign Service - Port 3002)
+  - name: Contributions
+    description: Campaign contribution operations (Campaign Service - Port 3002)
+  - name: Messages
+    description: Messaging system operations (Supabase REST API)
+  - name: Requests
+    description: Donation request operations (Supabase REST API)
+  - name: Ratings
+    description: Rating and review operations (Supabase REST API)
+  - name: Profiles
+    description: User profile management (Supabase REST API)
+  - name: Reports
+    description: Content reporting system (Supabase REST API)
+  - name: Storage
+    description: File storage operations (Supabase Storage API)
+  - name: Health
+    description: Service health check endpoints
+
+paths:
+  # Donation Service Endpoints (Port 3001)
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint (Donation Service)
+      description: Returns the health status of the Donation Service
+      operationId: donationServiceHealthCheck
+      servers:
+        - url: http://localhost:3001
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-01-15T10:30:00Z"
+                  service:
+                    type: string
+                    example: "donation-service"
+                  database:
+                    type: string
+                    example: "connected"
+                  messaging:
+                    type: string
+                    example: "connected"
+
+  /api/donations:
+    get:
+      tags:
+        - Donations
+      summary: List donations
+      description: |
+        Retrieve a list of donations with optional filtering.
+        Supports filtering by status, category, and donor_id.
+        **Service:** Donation Service (Port 3001)
+      operationId: getDonations
+      servers:
+        - url: http://localhost:3001
+      parameters:
+        - name: status
+          in: query
+          description: Filter by donation status
+          required: false
+          schema:
+            type: string
+            enum: [pending, available, claimed, completed, rejected]
+          example: available
+        - name: category
+          in: query
+          description: Filter by donation category
+          required: false
+          schema:
+            type: string
+          example: Food
+        - name: donor_id
+          in: query
+          description: Filter by donor ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Donation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Donations
+      summary: Create a new donation
+      description: |
+        Create a new donation listing. The donation will be created with status 'pending' by default.
+        An event will be published to RabbitMQ upon successful creation.
+        **Service:** Donation Service (Port 3001)
+      operationId: createDonation
+      servers:
+        - url: http://localhost:3001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDonationRequest"
+      responses:
+        "201":
+          description: Donation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Donation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/donations/{id}:
+    get:
+      tags:
+        - Donations
+      summary: Get donation by ID
+      description: Retrieve a specific donation by its UUID. **Service:** Donation Service (Port 3001)
+      operationId: getDonationById
+      servers:
+        - url: http://localhost:3001
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Donation UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Donation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      tags:
+        - Donations
+      summary: Update donation
+      description: |
+        Update an existing donation. Only provided fields will be updated.
+        An event will be published if the status changes.
+        **Service:** Donation Service (Port 3001)
+      operationId: updateDonation
+      servers:
+        - url: http://localhost:3001
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Donation UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDonationRequest"
+      responses:
+        "200":
+          description: Donation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Donation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Donations
+      summary: Delete donation
+      description: |
+        Delete a donation by ID. An event will be published to RabbitMQ.
+        **Service:** Donation Service (Port 3001)
+      operationId: deleteDonation
+      servers:
+        - url: http://localhost:3001
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Donation UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Donation deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Donation deleted successfully"
+                  id:
+                    type: string
+                    format: uuid
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # Campaign Service Endpoints (Port 3002)
+  /api/campaigns:
+    get:
+      tags:
+        - Campaigns
+      summary: List campaigns
+      description: |
+        Retrieve a list of campaigns with optional filtering.
+        Supports filtering by status, category, and recipient_id.
+        **Service:** Campaign Service (Port 3002)
+      operationId: getCampaigns
+      servers:
+        - url: http://localhost:3002
+      parameters:
+        - name: status
+          in: query
+          description: Filter by campaign status
+          required: false
+          schema:
+            type: string
+            enum: [pending, active, paused, completed, rejected]
+          example: active
+        - name: category
+          in: query
+          description: Filter by campaign category
+          required: false
+          schema:
+            type: string
+          example: Medical
+        - name: recipient_id
+          in: query
+          description: Filter by recipient ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Campaigns
+      summary: Create a new campaign
+      description: |
+        Create a new fundraising campaign. The campaign will be created with status 'pending' by default.
+        An event will be published to RabbitMQ upon successful creation.
+        **Service:** Campaign Service (Port 3002)
+      operationId: createCampaign
+      servers:
+        - url: http://localhost:3002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignRequest"
+      responses:
+        "201":
+          description: Campaign created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/campaigns/{id}:
+    get:
+      tags:
+        - Campaigns
+      summary: Get campaign by ID
+      description: Retrieve a specific campaign by its UUID. **Service:** Campaign Service (Port 3002)
+      operationId: getCampaignById
+      servers:
+        - url: http://localhost:3002
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      tags:
+        - Campaigns
+      summary: Update campaign
+      description: |
+        Update an existing campaign. Only provided fields will be updated.
+        An event will be published if the status changes.
+        **Service:** Campaign Service (Port 3002)
+      operationId: updateCampaign
+      servers:
+        - url: http://localhost:3002
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCampaignRequest"
+      responses:
+        "200":
+          description: Campaign updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Campaigns
+      summary: Delete campaign
+      description: |
+        Delete a campaign by ID. An event will be published to RabbitMQ.
+        **Service:** Campaign Service (Port 3002)
+      operationId: deleteCampaign
+      servers:
+        - url: http://localhost:3002
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Campaign deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Campaign deleted successfully"
+                  id:
+                    type: string
+                    format: uuid
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/campaigns/{id}/contribute:
+    post:
+      tags:
+        - Contributions
+      summary: Contribute to campaign
+      description: |
+        Add a monetary contribution to a campaign. The collected_amount will be updated.
+        An event will be published to RabbitMQ. If the goal is reached, a completion event is also published.
+        **Service:** Campaign Service (Port 3002)
+      operationId: contributeToCampaign
+      servers:
+        - url: http://localhost:3002
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContributeRequest"
+      responses:
+        "200":
+          description: Contribution successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # Supabase REST API Endpoints
+  # Messages API
+  /messages:
+    get:
+      tags:
+        - Messages
+      summary: List messages
+      description: |
+        Retrieve messages with optional filtering by campaign_id, donation_id, sender_id, or receiver_id.
+        **Service:** Supabase REST API
+      operationId: getMessages
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: campaign_id
+          in: query
+          description: Filter by campaign ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: donation_id
+          in: query
+          description: Filter by donation ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: sender_id
+          in: query
+          description: Filter by sender ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: receiver_id
+          in: query
+          description: Filter by receiver ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Messages
+      summary: Create a new message
+      description: |
+        Send a new message between users. Can be associated with a campaign or donation.
+        **Service:** Supabase REST API
+      operationId: createMessage
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageRequest"
+      responses:
+        "201":
+          description: Message created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /messages/{id}:
+    get:
+      tags:
+        - Messages
+      summary: Get message by ID
+      description: Retrieve a specific message by its UUID. **Service:** Supabase REST API
+      operationId: getMessageById
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Message UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags:
+        - Messages
+      summary: Update message (mark as read)
+      description: Update a message, typically to mark it as read. **Service:** Supabase REST API
+      operationId: updateMessage
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Message UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMessageRequest"
+      responses:
+        "200":
+          description: Message updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Requests API
+  /requests:
+    get:
+      tags:
+        - Requests
+      summary: List donation requests
+      description: |
+        Retrieve donation requests with optional filtering by donation_id, recipient_id, or status.
+        **Service:** Supabase REST API
+      operationId: getRequests
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: donation_id
+          in: query
+          description: Filter by donation ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: recipient_id
+          in: query
+          description: Filter by recipient ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by request status
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Request"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Requests
+      summary: Create a donation request
+      description: |
+        Create a new request from a recipient for a donation.
+        **Service:** Supabase REST API
+      operationId: createRequest
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequestRequest"
+      responses:
+        "201":
+          description: Request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /requests/{id}:
+    get:
+      tags:
+        - Requests
+      summary: Get request by ID
+      description: Retrieve a specific request by its UUID. **Service:** Supabase REST API
+      operationId: getRequestById
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Request UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags:
+        - Requests
+      summary: Update request status
+      description: Update a request, typically to approve or reject it. **Service:** Supabase REST API
+      operationId: updateRequest
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Request UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRequestRequest"
+      responses:
+        "200":
+          description: Request updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags:
+        - Requests
+      summary: Delete request
+      description: Delete a request by ID. **Service:** Supabase REST API
+      operationId: deleteRequest
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Request UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "204":
+          description: Request deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Ratings API
+  /ratings:
+    get:
+      tags:
+        - Ratings
+      summary: List ratings
+      description: |
+        Retrieve ratings with optional filtering by donation_id, recipient_id, or donor_id.
+        **Service:** Supabase REST API
+      operationId: getRatings
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: donation_id
+          in: query
+          description: Filter by donation ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: recipient_id
+          in: query
+          description: Filter by recipient ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: donor_id
+          in: query
+          description: Filter by donor ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rating"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Ratings
+      summary: Create a rating
+      description: |
+        Create a new rating for a donation.
+        **Service:** Supabase REST API
+      operationId: createRating
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRatingRequest"
+      responses:
+        "201":
+          description: Rating created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rating"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # Profiles API
+  /profiles:
+    get:
+      tags:
+        - Profiles
+      summary: List profiles
+      description: |
+        Retrieve user profiles with optional filtering by role, recipient_status, or blocked status.
+        **Service:** Supabase REST API
+      operationId: getProfiles
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: role
+          in: query
+          description: Filter by user role
+          required: false
+          schema:
+            type: string
+            enum: [donor, recipient, admin]
+        - name: recipient_status
+          in: query
+          description: Filter by recipient verification status
+          required: false
+          schema:
+            type: string
+            enum: [unrequested, requested, approved]
+        - name: blocked
+          in: query
+          description: Filter by blocked status
+          required: false
+          schema:
+            type: boolean
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /profiles/{id}:
+    get:
+      tags:
+        - Profiles
+      summary: Get profile by ID
+      description: Retrieve a specific user profile by its UUID. **Service:** Supabase REST API
+      operationId: getProfileById
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Profile UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags:
+        - Profiles
+      summary: Update profile
+      description: Update a user profile. **Service:** Supabase REST API
+      operationId: updateProfile
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Profile UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Reports API
+  /reports:
+    get:
+      tags:
+        - Reports
+      summary: List reports
+      description: |
+        Retrieve reports with optional filtering by reporter_id, reported_id, type, or status.
+        **Service:** Supabase REST API
+      operationId: getReports
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: reporter_id
+          in: query
+          description: Filter by reporter ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: reported_id
+          in: query
+          description: Filter by reported ID (UUID)
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          description: Filter by report type
+          required: false
+          schema:
+            type: string
+            enum: [user, donation, campaign, request]
+        - name: status
+          in: query
+          description: Filter by report status
+          required: false
+          schema:
+            type: string
+            enum: [pending, reviewed, resolved]
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      tags:
+        - Reports
+      summary: Create a report
+      description: |
+        Create a new report for inappropriate content or users.
+        **Service:** Supabase REST API
+      operationId: createReport
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportRequest"
+      responses:
+        "201":
+          description: Report created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /reports/{id}:
+    get:
+      tags:
+        - Reports
+      summary: Get report by ID
+      description: Retrieve a specific report by its UUID. **Service:** Supabase REST API
+      operationId: getReportById
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      tags:
+        - Reports
+      summary: Update report status
+      description: Update a report status (reviewed, resolved). **Service:** Supabase REST API
+      operationId: updateReport
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportRequest"
+      responses:
+        "200":
+          description: Report updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags:
+        - Reports
+      summary: Delete report
+      description: Delete a report by ID. **Service:** Supabase REST API
+      operationId: deleteReport
+      servers:
+        - url: https://{supabase-project-id}.supabase.co/rest/v1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report UUID
+          schema:
+            type: string
+            format: uuid
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "204":
+          description: Report deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Storage API
+  /storage/v1/object/{bucket}/{path}:
+    put:
+      tags:
+        - Storage
+      summary: Upload file to storage
+      description: |
+        Upload a file (image, document) to Supabase Storage.
+        **Service:** Supabase Storage API
+      operationId: uploadFile
+      servers:
+        - url: https://{supabase-project-id}.supabase.co
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          description: Storage bucket name (e.g., 'donations', 'verification')
+          schema:
+            type: string
+            example: donations
+        - name: path
+          in: path
+          required: true
+          description: File path in bucket
+          schema:
+            type: string
+            example: image-123.jpg
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+        - name: Content-Type
+          in: header
+          required: true
+          description: File MIME type
+          schema:
+            type: string
+            example: image/jpeg
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Key:
+                    type: string
+                    example: "image-123.jpg"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /storage/v1/object/public/{bucket}/{path}:
+    get:
+      tags:
+        - Storage
+      summary: Get public file URL
+      description: |
+        Get a public URL for a file in storage.
+        **Service:** Supabase Storage API
+      operationId: getFileUrl
+      servers:
+        - url: https://{supabase-project-id}.supabase.co
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          description: Storage bucket name
+          schema:
+            type: string
+            example: donations
+        - name: path
+          in: path
+          required: true
+          description: File path in bucket
+          schema:
+            type: string
+            example: image-123.jpg
+        - name: Authorization
+          in: header
+          required: false
+          description: Bearer token with Supabase anon key (optional for public files)
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: File URL retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publicUrl:
+                    type: string
+                    format: uri
+                    example: "https://[project-id].supabase.co/storage/v1/object/public/donations/image-123.jpg"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags:
+        - Storage
+      summary: Delete file from storage
+      description: |
+        Delete a file from storage.
+        **Service:** Supabase Storage API
+      operationId: deleteFile
+      servers:
+        - url: https://{supabase-project-id}.supabase.co
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          description: Storage bucket name
+          schema:
+            type: string
+            example: donations
+        - name: path
+          in: path
+          required: true
+          description: File path in bucket
+          schema:
+            type: string
+            example: image-123.jpg
+        - name: Authorization
+          in: header
+          required: true
+          description: Bearer token with Supabase anon key
+          schema:
+            type: string
+            example: "Bearer YOUR_SUPABASE_ANON_KEY"
+      responses:
+        "200":
+          description: File deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  schemas:
+    Donation:
+      type: object
+      required:
+        - id
+        - donor_id
+        - title
+        - description
+        - category
+        - location
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique donation identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        donor_id:
+          type: string
+          format: uuid
+          description: ID of the user who created the donation
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        title:
+          type: string
+          description: Title of the donation
+          example: "Books for Education"
+          minLength: 1
+        description:
+          type: string
+          description: Detailed description of the donation
+          example: "Educational books for children in need"
+          minLength: 1
+        category:
+          type: string
+          description: Category of the donation
+          example: "Books"
+          minLength: 1
+        location:
+          type: string
+          description: Location where the donation is available
+          example: "Addis Ababa, Ethiopia"
+          minLength: 1
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the donation image
+          example: "https://example.com/image.jpg"
+        status:
+          type: string
+          enum: [pending, available, claimed, completed, rejected]
+          description: Current status of the donation
+          example: "available"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the donation was created
+          example: "2025-01-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the donation was last updated
+          example: "2025-01-15T10:00:00Z"
+
+    CreateDonationRequest:
+      type: object
+      required:
+        - donor_id
+        - title
+        - description
+        - category
+        - location
+      properties:
+        donor_id:
+          type: string
+          format: uuid
+          description: ID of the user creating the donation
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        title:
+          type: string
+          description: Title of the donation
+          example: "Books for Education"
+          minLength: 1
+        description:
+          type: string
+          description: Detailed description of the donation
+          example: "Educational books for children in need"
+          minLength: 1
+        category:
+          type: string
+          description: Category of the donation
+          example: "Books"
+          minLength: 1
+        location:
+          type: string
+          description: Location where the donation is available
+          example: "Addis Ababa, Ethiopia"
+          minLength: 1
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the donation image (optional)
+          example: "https://example.com/image.jpg"
+        status:
+          type: string
+          enum: [pending, available]
+          description: Initial status (defaults to 'pending')
+          example: "pending"
+          default: "pending"
+
+    UpdateDonationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Updated title
+          example: "Updated Book Title"
+          minLength: 1
+        description:
+          type: string
+          description: Updated description
+          example: "Updated description"
+          minLength: 1
+        category:
+          type: string
+          description: Updated category
+          example: "Books"
+          minLength: 1
+        location:
+          type: string
+          description: Updated location
+          example: "New Location"
+          minLength: 1
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Updated image URL
+          example: "https://example.com/new-image.jpg"
+        status:
+          type: string
+          enum: [pending, available, claimed, completed, rejected]
+          description: Updated status
+          example: "claimed"
+
+    Campaign:
+      type: object
+      required:
+        - id
+        - recipient_id
+        - title
+        - description
+        - category
+        - location
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique campaign identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        recipient_id:
+          type: string
+          format: uuid
+          description: ID of the user who created the campaign
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        title:
+          type: string
+          description: Title of the campaign
+          example: "Medical Fund"
+          minLength: 1
+        description:
+          type: string
+          description: Detailed description of the campaign
+          example: "Help with medical expenses for surgery"
+          minLength: 1
+        category:
+          type: string
+          description: Category of the campaign
+          example: "Medical"
+          minLength: 1
+        location:
+          type: string
+          description: Location of the campaign
+          example: "Addis Ababa, Ethiopia"
+          minLength: 1
+        goal_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Target amount for the campaign (optional)
+          example: 5000
+          minimum: 0
+        collected_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Amount collected so far
+          example: 2500
+          minimum: 0
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the campaign image
+          example: "https://example.com/image.jpg"
+        status:
+          type: string
+          enum: [pending, active, paused, completed, rejected]
+          description: Current status of the campaign
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the campaign was created
+          example: "2025-01-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the campaign was last updated
+          example: "2025-01-15T10:00:00Z"
+
+    CreateCampaignRequest:
+      type: object
+      required:
+        - recipient_id
+        - title
+        - description
+        - category
+        - location
+      properties:
+        recipient_id:
+          type: string
+          format: uuid
+          description: ID of the user creating the campaign
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        title:
+          type: string
+          description: Title of the campaign
+          example: "Medical Fund"
+          minLength: 1
+        description:
+          type: string
+          description: Detailed description of the campaign
+          example: "Help with medical expenses for surgery"
+          minLength: 1
+        category:
+          type: string
+          description: Category of the campaign
+          example: "Medical"
+          minLength: 1
+        location:
+          type: string
+          description: Location of the campaign
+          example: "Addis Ababa, Ethiopia"
+          minLength: 1
+        goal_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Target amount for the campaign (optional)
+          example: 5000
+          minimum: 0
+        collected_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Initial collected amount (optional, defaults to 0)
+          example: 0
+          minimum: 0
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the campaign image (optional)
+          example: "https://example.com/image.jpg"
+        status:
+          type: string
+          enum: [pending, active]
+          description: Initial status (defaults to 'pending')
+          example: "pending"
+          default: "pending"
+
+    UpdateCampaignRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Updated title
+          example: "Updated Campaign Title"
+          minLength: 1
+        description:
+          type: string
+          description: Updated description
+          example: "Updated description"
+          minLength: 1
+        category:
+          type: string
+          description: Updated category
+          example: "Medical"
+          minLength: 1
+        location:
+          type: string
+          description: Updated location
+          example: "New Location"
+          minLength: 1
+        goal_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Updated goal amount
+          example: 6000
+          minimum: 0
+        collected_amount:
+          type: number
+          format: float
+          nullable: true
+          description: Updated collected amount
+          example: 3000
+          minimum: 0
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Updated image URL
+          example: "https://example.com/new-image.jpg"
+        status:
+          type: string
+          enum: [pending, active, paused, completed, rejected]
+          description: Updated status
+          example: "active"
+
+    ContributeRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: number
+          format: float
+          description: Contribution amount (must be greater than 0)
+          example: 100.50
+          minimum: 0.01
+
+    Message:
+      type: object
+      required:
+        - id
+        - sender_id
+        - receiver_id
+        - content
+        - read
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique message identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        campaign_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated campaign ID (if applicable)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        donation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated donation ID (if applicable)
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        sender_id:
+          type: string
+          format: uuid
+          description: ID of the message sender
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        receiver_id:
+          type: string
+          format: uuid
+          description: ID of the message receiver
+          example: "990e8400-e29b-41d4-a716-446655440004"
+        content:
+          type: string
+          description: Message content
+          example: "Hello, I'm interested in your donation."
+        read:
+          type: boolean
+          description: Whether the message has been read
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the message was created
+          example: "2025-01-15T10:00:00Z"
+
+    CreateMessageRequest:
+      type: object
+      required:
+        - sender_id
+        - receiver_id
+        - content
+      properties:
+        campaign_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated campaign ID (optional)
+        donation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Associated donation ID (optional)
+        sender_id:
+          type: string
+          format: uuid
+          description: ID of the message sender
+        receiver_id:
+          type: string
+          format: uuid
+          description: ID of the message receiver
+        content:
+          type: string
+          description: Message content
+          minLength: 1
+        read:
+          type: boolean
+          description: Whether the message has been read (defaults to false)
+          default: false
+
+    UpdateMessageRequest:
+      type: object
+      properties:
+        read:
+          type: boolean
+          description: Mark message as read/unread
+        content:
+          type: string
+          description: Update message content
+
+    Request:
+      type: object
+      required:
+        - id
+        - donation_id
+        - recipient_id
+        - message
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique request identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        donation_id:
+          type: string
+          format: uuid
+          description: ID of the donation being requested
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        recipient_id:
+          type: string
+          format: uuid
+          description: ID of the recipient making the request
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        message:
+          type: string
+          description: Request message from recipient
+          example: "I would like to request this donation for my family."
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Request status
+          example: "pending"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the request was created
+          example: "2025-01-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the request was last updated
+          example: "2025-01-15T10:00:00Z"
+
+    CreateRequestRequest:
+      type: object
+      required:
+        - donation_id
+        - recipient_id
+        - message
+      properties:
+        donation_id:
+          type: string
+          format: uuid
+          description: ID of the donation being requested
+        recipient_id:
+          type: string
+          format: uuid
+          description: ID of the recipient making the request
+        message:
+          type: string
+          description: Request message from recipient
+          minLength: 1
+        status:
+          type: string
+          enum: [pending]
+          description: Initial status (defaults to 'pending')
+          default: "pending"
+
+    UpdateRequestRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Update request status
+        message:
+          type: string
+          description: Update request message
+
+    Rating:
+      type: object
+      required:
+        - id
+        - donation_id
+        - recipient_id
+        - donor_id
+        - rating
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique rating identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        donation_id:
+          type: string
+          format: uuid
+          description: ID of the donation being rated
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        recipient_id:
+          type: string
+          format: uuid
+          description: ID of the recipient who received the donation
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        donor_id:
+          type: string
+          format: uuid
+          description: ID of the donor who gave the donation
+          example: "880e8400-e29b-41d4-a716-446655440003"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Rating value (1-5 stars)
+          example: 5
+        comment:
+          type: string
+          nullable: true
+          description: Optional comment/review
+          example: "Great donation, very helpful!"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the rating was created
+          example: "2025-01-15T10:00:00Z"
+
+    CreateRatingRequest:
+      type: object
+      required:
+        - donation_id
+        - recipient_id
+        - donor_id
+        - rating
+      properties:
+        donation_id:
+          type: string
+          format: uuid
+          description: ID of the donation being rated
+        recipient_id:
+          type: string
+          format: uuid
+          description: ID of the recipient who received the donation
+        donor_id:
+          type: string
+          format: uuid
+          description: ID of the donor who gave the donation
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Rating value (1-5 stars)
+        comment:
+          type: string
+          nullable: true
+          description: Optional comment/review
+
+    Profile:
+      type: object
+      required:
+        - id
+        - email
+        - full_name
+        - role
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique profile identifier (matches auth.users.id)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        phone:
+          type: string
+          nullable: true
+          description: User phone number
+          example: "+1234567890"
+        full_name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        role:
+          type: string
+          enum: [donor, recipient, admin]
+          description: User role
+          example: "donor"
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of user's avatar image
+          example: "https://example.com/avatar.jpg"
+        location:
+          type: string
+          nullable: true
+          description: User location
+          example: "Addis Ababa, Ethiopia"
+        verification_image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of verification document (for recipients)
+          example: "https://example.com/verification.jpg"
+        recipient_status:
+          type: string
+          enum: [unrequested, requested, approved]
+          nullable: true
+          description: Recipient verification status
+          example: "approved"
+        blocked:
+          type: boolean
+          nullable: true
+          description: Whether the user is blocked
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was created
+          example: "2025-01-15T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was last updated
+          example: "2025-01-15T10:00:00Z"
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Update email address
+        phone:
+          type: string
+          nullable: true
+          description: Update phone number
+        full_name:
+          type: string
+          description: Update full name
+        role:
+          type: string
+          enum: [donor, recipient, admin]
+          description: Update user role
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Update avatar URL
+        location:
+          type: string
+          nullable: true
+          description: Update location
+        verification_image_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Update verification image URL
+        recipient_status:
+          type: string
+          enum: [unrequested, requested, approved]
+          nullable: true
+          description: Update recipient verification status
+        blocked:
+          type: boolean
+          nullable: true
+          description: Block or unblock user
+
+    Report:
+      type: object
+      required:
+        - id
+        - reporter_id
+        - reported_id
+        - type
+        - reason
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique report identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        reporter_id:
+          type: string
+          format: uuid
+          description: ID of the user making the report
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        reported_id:
+          type: string
+          format: uuid
+          description: ID of the reported user/donation/campaign
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        type:
+          type: string
+          enum: [user, donation, campaign, request]
+          description: Type of content being reported
+          example: "donation"
+        reason:
+          type: string
+          description: Reason for the report
+          example: "Inappropriate content"
+        description:
+          type: string
+          nullable: true
+          description: Additional details about the report
+          example: "This donation contains offensive material."
+        status:
+          type: string
+          enum: [pending, reviewed, resolved]
+          description: Report status
+          example: "pending"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the report was created
+          example: "2025-01-15T10:00:00Z"
+
+    CreateReportRequest:
+      type: object
+      required:
+        - reporter_id
+        - reported_id
+        - type
+        - reason
+      properties:
+        reporter_id:
+          type: string
+          format: uuid
+          description: ID of the user making the report
+        reported_id:
+          type: string
+          format: uuid
+          description: ID of the reported user/donation/campaign
+        type:
+          type: string
+          enum: [user, donation, campaign, request]
+          description: Type of content being reported
+        reason:
+          type: string
+          description: Reason for the report
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+          description: Additional details about the report
+        status:
+          type: string
+          enum: [pending]
+          description: Initial status (defaults to 'pending')
+          default: "pending"
+
+    UpdateReportRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, reviewed, resolved]
+          description: Update report status
+        description:
+          type: string
+          nullable: true
+          description: Update report description
+
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: "Validation failed"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "donor_id"
+              message:
+                type: string
+                example: "Invalid donor_id - must be a valid UUID"
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Validation failed"
+            errors:
+              - field: "donor_id"
+                message: "Invalid donor_id - must be a valid UUID"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Resource not found"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Internal server error"
+
+    Unauthorized:
+      description: Unauthorized - authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "Unauthorized - valid authentication token required"
+

@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { donationAPI, campaignAPI } from "@/lib/api";
 import { useRouter } from "expo-router";
 import {
   CheckCircle,
@@ -78,46 +79,59 @@ export default function AdminScreen() {
   };
 
   const fetchCampaigns = async () => {
-    const { data, error } = await supabase
-      .from("campaigns")
-      .select(
-        `
-        *,
-        profiles:recipient_id (
-          full_name,
-          recipient_status
-        )
-      `
-      )
-      .eq("status", "pending");
-
-    if (error) {
+    try {
+      const data = await campaignAPI.getCampaigns({ status: "pending" });
+      
+      // Fetch profile data for each campaign
+      const campaignsWithProfiles = await Promise.all(
+        data.map(async (campaign: any) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, recipient_status")
+            .eq("id", campaign.recipient_id)
+            .single();
+          
+          return {
+            ...campaign,
+            profiles: profile || { full_name: "Unknown", recipient_status: null },
+          };
+        })
+      );
+      
+      console.log("Fetched campaigns:", campaignsWithProfiles);
+      setCampaigns(campaignsWithProfiles || []);
+    } catch (error) {
       console.error("Error fetching campaigns:", error);
-      throw error;
+      Alert.alert("Error", "Failed to fetch campaigns. Make sure the Campaign Service is running.");
     }
-    console.log("Fetched campaigns:", data);
-    setCampaigns(data || []);
   };
 
   const fetchDonations = async () => {
-    const { data, error } = await supabase
-      .from("donations")
-      .select(
-        `
-        *,
-        profiles:donor_id (
-          full_name
-        )
-      `
-      )
-      .eq("status", "pending");
-
-    if (error) {
+    try {
+      const data = await donationAPI.getDonations({ status: "pending" });
+      
+      // Fetch profile data for each donation
+      const donationsWithProfiles = await Promise.all(
+        data.map(async (donation: any) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", donation.donor_id)
+            .single();
+          
+          return {
+            ...donation,
+            profiles: profile || { full_name: "Unknown" },
+          };
+        })
+      );
+      
+      console.log("Fetched donations:", donationsWithProfiles);
+      setDonations(donationsWithProfiles || []);
+    } catch (error) {
       console.error("Error fetching donations:", error);
-      throw error;
+      Alert.alert("Error", "Failed to fetch donations. Make sure the Donation Service is running.");
     }
-    console.log("Fetched donations:", data);
-    setDonations(data || []);
   };
 
   const fetchReports = async () => {
@@ -162,23 +176,18 @@ export default function AdminScreen() {
     approved: boolean
   ) => {
     try {
-      const { error } = await supabase
-        .from("campaigns")
-        .update({
-          status: approved ? "active" : "rejected",
-        })
-        .eq("id", campaignId);
-
-      if (error) throw error;
+      await campaignAPI.updateCampaign(campaignId, {
+        status: approved ? "active" : "rejected",
+      });
 
       Alert.alert(
         "Success",
         `Campaign ${approved ? "approved" : "rejected"} successfully`
       );
       fetchCampaigns();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating campaign:", error);
-      Alert.alert("Error", "Failed to update campaign status");
+      Alert.alert("Error", error.message || "Failed to update campaign status");
     }
   };
 
@@ -187,23 +196,18 @@ export default function AdminScreen() {
     approved: boolean
   ) => {
     try {
-      const { error } = await supabase
-        .from("donations")
-        .update({
-          status: approved ? "available" : "rejected",
-        })
-        .eq("id", donationId);
-
-      if (error) throw error;
+      await donationAPI.updateDonation(donationId, {
+        status: approved ? "available" : "rejected",
+      });
 
       Alert.alert(
         "Success",
         `Donation ${approved ? "approved" : "rejected"} successfully`
       );
       fetchDonations();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating donation:", error);
-      Alert.alert("Error", "Failed to update donation status");
+      Alert.alert("Error", error.message || "Failed to update donation status");
     }
   };
 

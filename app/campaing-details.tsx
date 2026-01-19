@@ -143,28 +143,61 @@ export default function CampaignDetailsScreen() {
     setLoading(true);
     try {
       if (isRecipient) {
-        // Recipient: Fetch all conversations using the new RPC function
-        const { data, error } = await supabase.rpc(
-          "get_campaign_conversations",
-          {
-            p_campaign_id: campaignId,
-            p_user_id: profile.id,
+        // Recipient: Fetch all conversations grouped by donor
+        // First, get all messages for this campaign where recipient is involved
+        const { data: allMessages, error: messagesError } = await supabase
+          .from("messages")
+          .select(`*, sender:sender_id(id, full_name, avatar_url), receiver:receiver_id(id, full_name, avatar_url)`)
+          .eq("campaign_id", campaignId)
+          .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+          .order("created_at", { ascending: true });
+
+        if (messagesError) throw messagesError;
+
+        // Group messages by the other user (donor)
+        const conversationsMap = new Map<string, any>();
+
+        (allMessages || []).forEach((msg: any) => {
+          const otherUserId = msg.sender_id === profile.id ? msg.receiver_id : msg.sender_id;
+          const otherUser = msg.sender_id === profile.id ? msg.receiver : msg.sender;
+
+          if (!conversationsMap.has(otherUserId)) {
+            conversationsMap.set(otherUserId, {
+              donor: {
+                id: otherUserId,
+                full_name: otherUser?.full_name || "Unknown",
+                avatar_url: otherUser?.avatar_url || null,
+              },
+              messages: [],
+              lastMessage: null,
+            });
           }
-        );
 
-        if (error) throw error;
+          const convo = conversationsMap.get(otherUserId);
+          convo.messages.push({
+            id: msg.id,
+            content: msg.content,
+            sender_id: msg.sender_id,
+            receiver_id: msg.receiver_id,
+            read: msg.read,
+            created_at: msg.created_at,
+          });
 
-        const convos = (data || []).map((convo: any) => ({
-          donor: {
-            id: convo.other_user_id,
-            full_name: convo.other_user_name,
-          },
-          messages: convo.messages,
-          lastMessage: {
-            content: convo.last_message_content,
-            created_at: convo.last_message_at,
-          },
-        }));
+          // Update last message
+          if (!convo.lastMessage || new Date(msg.created_at) > new Date(convo.lastMessage.created_at)) {
+            convo.lastMessage = {
+              content: msg.content,
+              created_at: msg.created_at,
+            };
+          }
+        });
+
+        // Convert map to array and sort by last message time
+        const convos = Array.from(conversationsMap.values()).sort((a, b) => {
+          if (!a.lastMessage) return 1;
+          if (!b.lastMessage) return -1;
+          return new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime();
+        });
 
         setConversations(convos);
       } else {

@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  donation-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: donation-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://host.docker.internal:5672}
+      - JWT_SECRET=${JWT_SECRET}
+    env_file:
+      - .env
+    networks:
+      - donation-network
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  donation-network:
+    driver: bridge
+

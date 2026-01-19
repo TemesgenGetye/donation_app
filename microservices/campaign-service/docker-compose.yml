@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  campaign-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: campaign-service
+    ports:
+      - "3006:3006"
+    environment:
+      - NODE_ENV=production
+      - PORT=3006
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://host.docker.internal:5672}
+      - JWT_SECRET=${JWT_SECRET}
+    env_file:
+      - .env
+    networks:
+      - campaign-network
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3002/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  campaign-network:
+    driver: bridge

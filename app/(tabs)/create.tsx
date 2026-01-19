@@ -1,8 +1,9 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { campaignAPI, donationAPI } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { decode as atob } from "base-64";
-import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import {
   AlertCircle,
@@ -16,6 +17,7 @@ import { useState } from "react";
 import {
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -61,81 +63,111 @@ export default function CreateScreen() {
 
   // Unified image picker for both forms
   const pickImage = async (forDonation = true) => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Camera roll permission is required to select images."
-      );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      if (forDonation) {
-        setDonationImage(result.assets[0].uri);
-      } else {
-        setCampaignImage(result.assets[0].uri);
+    try {
+      // Dismiss keyboard before opening image picker (fixes Android issue)
+      Keyboard.dismiss();
+
+      // Small delay to ensure keyboard is fully dismissed
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Camera roll permission is required to select images."
+        );
+        return;
       }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        if (forDonation) {
+          setDonationImage(result.assets[0].uri);
+        } else {
+          setCampaignImage(result.assets[0].uri);
+        }
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image. Please try again.");
     }
   };
-
-  // Helper to convert base64 to Uint8Array
-  function base64ToUint8Array(base64: string) {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-  }
 
   // Accepts a uri, not using the global image state
   const uploadImage = async (uri: string | null) => {
     if (!uri) return null;
+    if (!profile) {
+      Alert.alert("Error", "You must be logged in to upload images.");
+      return null;
+    }
+
     try {
-      let fileExt = uri.split(".").pop();
-      if (!fileExt || fileExt.length > 5) fileExt = "jpg";
+      // Verify user is authenticated
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        Alert.alert("Error", "Please log in to upload images.");
+        return null;
+      }
+
+      // Generate a unique filename
+      const fileExt = uri.split(".").pop() || "jpg";
       const fileName = `${Date.now()}-${Math.random()
         .toString(36)
         .substring(2)}.${fileExt}`;
-      let fileData;
-      let uploadOptions: any = {
-        contentType: `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
-        upsert: false,
-      };
-      if (Platform.OS === "web") {
-        const response = await fetch(uri);
-        fileData = await response.blob();
-      } else {
-        const base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        fileData = base64ToUint8Array(base64);
-        if (uploadOptions.contentEncoding) delete uploadOptions.contentEncoding;
+
+      // Read file as base64 using expo-file-system
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: "base64" as any,
+      });
+
+      // Convert base64 to Uint8Array (binary data)
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
-      const uploadResult = await supabase.storage
+
+      // Upload to Supabase storage with binary data
+      const { error } = await supabase.storage
         .from("donations")
-        .upload(fileName, fileData, uploadOptions);
-      if (uploadResult.error) {
-        console.error("Upload error:", uploadResult.error);
-        throw uploadResult.error;
+        .upload(fileName, bytes, {
+          contentType: `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error("Upload error:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        throw error;
       }
-      const publicUrlResult = supabase.storage
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
         .from("donations")
         .getPublicUrl(fileName);
-      if (!publicUrlResult.data || !publicUrlResult.data.publicUrl) {
+
+      if (!urlData || !urlData.publicUrl) {
         Alert.alert("Upload Error", "No image URL returned. Please try again.");
         return null;
       }
-      return publicUrlResult.data.publicUrl;
-    } catch {
-      Alert.alert("Upload Error", "Failed to upload image. Please try again.");
+
+      return urlData.publicUrl;
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      Alert.alert(
+        "Upload Error",
+        error.message || "Failed to upload image. Please try again."
+      );
       return null;
     }
   };
@@ -164,16 +196,18 @@ export default function CreateScreen() {
           return;
         }
       }
-      const insertResult = await supabase.from("donations").insert({
+
+      // Use Donation Service API instead of direct Supabase insert
+      await donationAPI.createDonation({
         donor_id: profile.id,
         title: donationTitle,
         description: donationDescription,
         category: donationCategory,
         location: donationLocation,
-        image_url: imageUrl,
+        image_url: imageUrl || undefined,
         status: "pending",
       });
-      if (insertResult.error) throw insertResult.error;
+
       Alert.alert("Success", "Donation submitted for approval!", [
         { text: "OK", onPress: () => router.push("/(tabs)") },
       ]);
@@ -182,8 +216,9 @@ export default function CreateScreen() {
       setDonationCategory("");
       setDonationLocation("");
       setDonationImage(null);
-    } catch {
-      Alert.alert("Error", "Failed to create donation");
+    } catch (error: any) {
+      console.error("Error creating donation:", error);
+      Alert.alert("Error", error.message || "Failed to create donation");
     } finally {
       setLoading(false);
     }
@@ -213,19 +248,20 @@ export default function CreateScreen() {
           return;
         }
       }
-      const insertResult = await supabase.from("campaigns").insert({
+
+      // Use Campaign Service API instead of direct Supabase insert
+      await campaignAPI.createCampaign({
         recipient_id: profile.id,
         title: campaignTitle,
         description: campaignDescription,
         category: campaignCategory,
         location: campaignLocation,
         goal_amount: campaignGoal ? parseFloat(campaignGoal) : null,
-        image_url: imageUrl,
-        status: "pending",
+        image_url: imageUrl || undefined,
       });
-      if (insertResult.error) throw insertResult.error;
+
       Alert.alert("Success", "Campaign submitted for approval!", [
-        { text: "OK", onPress: () => router.push({ pathname: "/campaigns" }) },
+        { text: "OK", onPress: () => router.push("/(tabs)/campaigns") },
       ]);
       setCampaignTitle("");
       setCampaignDescription("");
@@ -233,8 +269,9 @@ export default function CreateScreen() {
       setCampaignLocation("");
       setCampaignGoal("");
       setCampaignImage(null);
-    } catch {
-      Alert.alert("Error", "Failed to create campaign");
+    } catch (error: any) {
+      console.error("Error creating campaign:", error);
+      Alert.alert("Error", error.message || "Failed to create campaign");
     } finally {
       setLoading(false);
     }
@@ -395,6 +432,7 @@ export default function CreateScreen() {
     );
   }
 
+  // Show campaign creation form for approved recipients
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -675,7 +713,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
     marginBottom: 20,
-    marginHorizontal: 0,
+    marginHorizontal: 20,
+    marginTop: 20,
   },
   approvalRequiredTitleCentered: {
     fontSize: 18,
@@ -705,3 +744,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

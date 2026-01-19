@@ -1,6 +1,7 @@
 import ReportModal from "@/components/ReportModal";
 import ReviewModal from "@/components/ReviewModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { donationAPI } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
 import { useRouter } from "expo-router";
@@ -81,35 +82,22 @@ export default function HomeScreen() {
 
   const fetchDonations = async () => {
     try {
-      let query = supabase
-        .from("donations")
-        .select(
-          `
-          *,
-          profiles:donor_id (
-            full_name,
-            avatar_url
-          ),
-          ratings (
-            rating,
-            comment
-          )
-        `
-        )
-        .order("created_at", { ascending: false });
+      const filters: { status?: string; donor_id?: string } = {};
 
       if (profile?.role === "donor") {
-        query = query.eq("donor_id", profile.id);
+        filters.donor_id = profile.id;
       } else {
-        query = query.eq("status", "available");
+        filters.status = "available";
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
+      const data = await donationAPI.getDonations(filters);
       setDonations(data || []);
     } catch (error) {
       console.error("Error fetching donations:", error);
+      Alert.alert(
+        "Error",
+        "Failed to fetch donations. Make sure the Donation Service is running."
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);

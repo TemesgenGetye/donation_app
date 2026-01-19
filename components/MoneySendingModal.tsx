@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { campaignAPI } from "@/lib/api";
 import { DollarSign, X } from "lucide-react-native";
 import { useState } from "react";
 import {
@@ -67,53 +67,8 @@ export default function MoneySendingModal({
     setLoading(true);
 
     try {
-      // Update the campaign's collected amount
-      const newCollectedAmount = (currentCollectedAmount || 0) + numAmount;
-
-      // First, let's try to get the current campaign to see if we can access it
-      const { data: currentCampaign, error: fetchError } = await supabase
-        .from("campaigns")
-        .select("collected_amount, recipient_id")
-        .eq("id", campaignId)
-        .single();
-
-      if (fetchError) {
-        console.error("Error fetching campaign:", fetchError);
-        throw fetchError;
-      }
-
-      console.log("Current campaign data:", currentCampaign);
-
-      // Now try to update
-      const { data, error } = await supabase
-        .from("campaigns")
-        .update({
-          collected_amount: newCollectedAmount,
-        })
-        .eq("id", campaignId)
-        .select("id, collected_amount, updated_at");
-
-      if (error) {
-        console.error("Supabase error details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
-
-        // Try to get more specific error information
-        if (error.code === "42501") {
-          Alert.alert(
-            "Permission Error",
-            "You don't have permission to update this campaign. This might be due to Row Level Security (RLS) policies."
-          );
-        } else {
-          Alert.alert("Database Error", `Error: ${error.message}`);
-        }
-        throw error;
-      }
-
-      console.log("Update successful:", data);
+      // Use Campaign Service API to contribute
+      await campaignAPI.contributeToCampaign(campaignId, numAmount);
 
       Alert.alert(
         "Success",
@@ -130,9 +85,12 @@ export default function MoneySendingModal({
       setAccountNumber("");
       setAmount("");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending money:", error);
-      Alert.alert("Error", "Failed to send money. Please try again.");
+      Alert.alert(
+        "Error",
+        error.message || "Failed to send money. Please try again."
+      );
     } finally {
       setLoading(false);
     }

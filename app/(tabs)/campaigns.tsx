@@ -1,6 +1,7 @@
 import MoneySendingModal from "@/components/MoneySendingModal";
 import ReportModal from "@/components/ReportModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { campaignAPI } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { Database } from "@/types/database";
 import { useRouter } from "expo-router";
@@ -84,35 +85,26 @@ export default function CampaignsScreen() {
 
   const fetchCampaigns = async () => {
     try {
-      let query = supabase
-        .from("campaigns")
-        .select(
-          `
-          *,
-          profiles:recipient_id (
-            full_name,
-            avatar_url
-          )
-        `
-        )
-        .order("created_at", { ascending: false });
+      const filters: { status?: string; recipient_id?: string } = {};
 
       if (profile?.role === "recipient") {
         if (profile.recipient_status === "approved") {
-          query = query.eq("recipient_id", profile.id);
+          filters.recipient_id = profile.id;
         } else {
-          query = query.eq("status", "active");
+          filters.status = "active";
         }
       } else {
-        query = query.eq("status", "active");
+        filters.status = "active";
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
+      const data = await campaignAPI.getCampaigns(filters);
       setCampaigns(data || []);
     } catch (error) {
       console.error("Error fetching campaigns:", error);
+      Alert.alert(
+        "Error",
+        "Failed to fetch campaigns. Make sure the Campaign Service is running."
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);

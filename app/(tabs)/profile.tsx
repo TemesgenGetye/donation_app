@@ -1,5 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { decode as atob } from "base-64";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
@@ -105,21 +107,44 @@ export default function ProfileScreen() {
 
     setUploading(true);
     try {
+      // Verify user is authenticated
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        Alert.alert("Error", "Please log in to upload images.");
+        setUploading(false);
+        return;
+      }
+
       const fileName = `verification_${profile.id}_${Date.now()}.jpg`;
 
-      // Create a file object from the URI
-      const file = {
-        uri: uri,
-        type: "image/jpeg",
-        name: fileName,
-      };
+      // Read file as base64 using expo-file-system (same as donations)
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: "base64" as any,
+      });
 
-      // Upload to Supabase storage
-      const { data, error } = await supabase.storage
+      // Convert base64 to Uint8Array (binary data)
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Upload to Supabase storage with binary data
+      const { error } = await supabase.storage
         .from("verification")
-        .upload(fileName, file as any);
+        .upload(fileName, bytes, {
+          contentType: "image/jpeg",
+          upsert: false,
+        });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Upload error:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        throw error;
+      }
 
       const { data: urlData } = supabase.storage
         .from("verification")
