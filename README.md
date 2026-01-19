@@ -732,7 +732,7 @@ For issues or questions:
 
 <div align="center">
 
-**Built with ❤️ for Distributed Systems Course**
+**Built with ❤️ for Distributed Systems Coursee**
 
 ⭐ Star this repo if you find it helpful!
 
